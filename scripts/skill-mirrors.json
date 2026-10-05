@@ -1,0 +1,20 @@
+{
+  "college-agents": "a3aea7407e78ed9ae52fe5c22af242ee58291e9061fe56cf1c668552ef356951",
+  "college-auth": "d6f93005161bde50422bb8e7ccd3b996d7ab5dede2719fca2b4fc1595ac6ca81",
+  "college-bootstrap": "1c38308c5241147b3269b47e0b77427551151d627233fd287c645c4588c29618",
+  "college-career": "f3b9ff5f9703f82151a5d0a640d833d1d687dd90b848a98aafe1936a1a549ce5",
+  "college-data": "f03a4f1321f4c36288c662dc34725661113b19985e70af622b7777e496b7fffc",
+  "college-design": "6ab8270ccd69555762494714ea49e7dd884c615d7f3aa3d7cb96be9e2bb5df6d",
+  "college-distributed": "282790f1cddcf740fe55e2c0d5a3562e4671e4e4db2dc28c45d9a937cab78d34",
+  "college-finance": "90a6d14039ba96e1b4db48695b0c10b65a78d90ce89fdb87070347088c777987",
+  "college-ingestion": "42ce58602a388d3d1cfafb92077de6cf1392896efa1270b884c8bdc0166f0a31",
+  "college-integrations": "0c7da49ee8406940ee45d51d30340a550433a5fc0b7456ed7039f0767409faf8",
+  "college-jobs": "ffe5ff8023bfa70e433e6ba9fa72c3dbd9f28f763d49528def03cacac346c8cb",
+  "college-lms": "fa47f4539e8124c5dc5efdca0e27d8e71712c12207cf9af2bdcba4ade11a1a37",
+  "college-operations": "ee5309dd707e5ee2846ee21f9d84567387405ae3ba49c1c615e193f28d2a3da0",
+  "college-release": "3f279a1325a53b0056199899f7189128b25667295fac9d1963df1d6d5499bc85",
+  "college-review": "37a512c8ca0cae5c625e1e235e787b0085a0d9e0fba9b23d90c7b5dc3ebc1425",
+  "college-scope": "8ca78a225458a9f2cca8acddd270262ba0dff94162023e02a1bbfff4b4f39658",
+  "college-security": "82f5ffa90e9209bb3c4a209a8ec8b08350b83f595992425a2717d3c3bd289073",
+  "college-testing": "e9cf9fa559eab5ea8db51d7b5c89902717b59af2009f01dd1de2721476d50f2e"
+}

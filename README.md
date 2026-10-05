@@ -4,7 +4,22 @@ One product, four connected modules, one student identity. This kit consolidates
 
 **Your constraints:** solo developer; Tuesday afternoon, assumed **6 October 2026, 14:00 IST**. Planning began around 00:32 IST on 5 October: approximately 37.5 elapsed hours remain. The exact afternoon cutoff needs confirmation; 14:00 is the planning assumption.
 
-**Deliverable status:** planning and skills only. No application, running distributed system, cloud resources, or production security certification has been created by this kit.
+**Deliverable status (5 Oct 14:40 IST):** the application is built and verified **locally** on synthetic data. Evidence is in [RELEASE-EVIDENCE.md](docs/RELEASE-EVIDENCE.md) and next steps are in [HANDOFF.md](HANDOFF.md). The app is **not deployed**. Live AI and Supabase auth are **untested** because no credentials were supplied.
+
+## Run locally (Node 22)
+
+```bash
+npm ci
+cp .env.example .env            # set SESSION_SECRET (32+ chars); AI_PROVIDER=fixture for the labeled mock
+npm run db:local                # terminal 1: PostgreSQL on :54329 (keep running)
+npm run db:migrate && npm run db:seed
+npm run dev                     # terminal 2: web on http://localhost:3000 → /signin, pick a synthetic user
+npm run worker                  # terminal 3: background worker (AI runs, notifications, reminders)
+npm test                        # 34 DB-backed tests (own throwaway DB on :54330)
+npm run e2e                     # 6 browser journeys (own DB on :54331, uses installed Microsoft Edge)
+```
+
+`.env` is not loaded automatically by the worker and scripts. Export its variables in your shell first, or prefix the commands with them.
 
 Start with [the implementation plan](docs/IMPLEMENTATION-PLAN.md), then [the ordered backlog](docs/BACKLOG.md). Use [the Claude/Codex workflow](docs/AI-BUILD-WORKFLOW.md) to execute one ticket at a time.
 

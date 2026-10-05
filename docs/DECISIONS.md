@@ -16,3 +16,7 @@ Recorded during implementation. Each entry: decision, reason, consequence. Newes
 | D10 | 5 Oct | AI output rendered as plain text (paragraphs + fenced code as `<pre>`), never as HTML. No markdown library. | Removes XSS surface from model output. |
 | D11 | 5 Oct | Email/external delivery: none. Complaint routing records the approved department; notifications are in-app only. | Plan default; P09 deferred. |
 | D12 | 5 Oct | Local git repository initialized (none existed). No remote configured. | Needed for revisions, lockfile commits and release pinning. |
+| D13 | 5 Oct 14:30 | Browser tests (Playwright 1.63, system Edge channel) run against `next dev` with the fixture provider. Production mode is covered by a separate `next start` smoke with `AI_PROVIDER=none`. | Fixture AI is refused when `NODE_ENV=production` (by design); not weakening that guard for tests. |
+| D14 | 5 Oct 14:35 | Local PostgreSQL runs with `io_method=sync`. | On Windows, PG18 `io_worker` children outlived `stop()` and held ports/shared memory, breaking reruns. |
+| D15 | 5 Oct 14:36 | Restore rehearsal done as a cold physical copy (`scripts/restore-drill.ts`). | Installed `pg_dump` is v17 and refuses the v18 server. Hosted (Supabase) backup/restore still needs its own drill. |
+| D16 | 5 Oct 14:38 | Migration 002 grants `app_rw` to the migrating owner. `render.yaml` written but **not applied**. | Hosted owners are not superusers and need membership to `SET ROLE`. No Render account access and no spend approval. |

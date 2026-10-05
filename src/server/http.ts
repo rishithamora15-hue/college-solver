@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import type { z } from 'zod';
 import { resolveActor, SESSION_COOKIE, verifySession, type Actor, type Role } from './auth';
 import { env } from './env';
-import { one, type Db } from './db';
+import { one, tx, type Db } from './db';
 
 export class AppError extends Error {
   constructor(public status: number, public code: string, message: string, public extra?: Record<string, unknown>) { super(message); }
@@ -50,6 +50,13 @@ export async function body<T extends z.ZodType>(req: NextRequest, schema: T): Pr
 }
 
 export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const isUuid = (s: unknown): s is string => typeof s === 'string' && UUID.test(s);
+export const uuidParam = (s: string) => { if (!isUuid(s)) throw notFound(); return s; };
+export const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { 'cache-control': 'no-store' } });
+/** Route-handler tx: tenant + user pinned from the server-derived actor. */
+export const scoped = <T>(a: Actor, fn: (c: Db) => Promise<T>) => tx(fn, { collegeId: a.collegeId, userId: a.userId });
 
 /**
  * Idempotent mutation inside the caller's transaction. Concurrent duplicates serialize on an advisory lock;

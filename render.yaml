@@ -1,0 +1,73 @@
+# Render Blueprint — REVIEW BEFORE APPLYING. Not applied by the build agent (no account access, no spend approval).
+# Database is external (Supabase Postgres): paste its connection string as DATABASE_URL. All secrets are sync:false.
+# Background workers have no free tier on Render: the `plan` values below cost money; confirm current pricing first.
+services:
+  - type: web
+    name: college-solver-web
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npm run db:migrate   # singleton release step, never on every instance start
+    startCommand: npm start -- -p $PORT
+    healthCheckPath: /api/v1/health/ready
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: AUTH_MODE
+        value: demo            # switch to supabase once SUPABASE_URL / SUPABASE_ANON_KEY are set
+      - key: DEMO_AUTH
+        value: allow           # synthetic evaluation only; remove before any real data
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: none            # set to anthropic with a key + model; fixture (mock) is refused in production
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RUNTIME_MODEL
+        sync: false
+      - key: APP_ORIGIN
+        sync: false            # e.g. https://college-solver-web.onrender.com (exact origin, used for CSRF checks)
+      - key: QUOTA_COLLEGE_DAILY
+        value: "300"
+      - key: QUOTA_GLOBAL_DAILY
+        value: "1000"
+
+  - type: worker
+    name: college-solver-worker
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm run worker
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        fromService: { type: web, name: college-solver-web, envVarKey: SESSION_SECRET }
+      - key: AUTH_MODE
+        fromService: { type: web, name: college-solver-web, envVarKey: AUTH_MODE }
+      - key: DEMO_AUTH
+        fromService: { type: web, name: college-solver-web, envVarKey: DEMO_AUTH }
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: AI_PROVIDER
+        fromService: { type: web, name: college-solver-web, envVarKey: AI_PROVIDER }
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RUNTIME_MODEL
+        sync: false
+      - key: WORKER_CONCURRENCY
+        value: "2"

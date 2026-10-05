@@ -2,6 +2,12 @@
 
 All tickets start **not implemented**. Estimates are focused engineering time and can exceed the deadline if integrations or reviews fail. Follow dependency order. Record actual evidence alongside tickets during implementation; this document contains acceptance targets, not results.
 
+**Status at 5 Oct 14:40 IST** (evidence: [RELEASE-EVIDENCE.md](RELEASE-EVIDENCE.md)):
+
+- **T00–T13 implemented and verified locally.** T07 uses seeded curated documents. T09 uses pasted text because uploads are disabled.
+- **T14 partial.** Done: `render.yaml`, the production smoke and the local restore drill. Blocked: the hosted deploy, hosted smoke, rollback and alerts. These need Render/Supabase access and spend approval.
+- **Live-AI acceptance is untested.** There is no key, so every AI check ran on the labeled mock.
+
 | ID / estimate | Depends on | Deliverable / likely files | Done when | Primary skill |
 |---|---|---|---|---|
 | T00 / 30m | None | Confirm cutoff, synthetic vs real-data gate, accounts, runtime provider; decisions record | Assumptions, account access and budget boundary explicit | `college-scope` |

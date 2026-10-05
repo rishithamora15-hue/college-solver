@@ -42,11 +42,11 @@ export async function submitComplaint(c: Db, a: Actor, studentId: string, i: { d
   return { complaint_id: cm.id, receipt_no: cm.receipt_no, status: cm.status, created_at: cm.created_at, department: d.department };
 }
 
-const STAFF_NEXT: Record<string, string[]> = {
+export const STAFF_NEXT: Record<string, string[]> = {
   submitted: ['assigned', 'in_progress'], assigned: ['in_progress', 'awaiting_student', 'resolved'], in_progress: ['awaiting_student', 'resolved'],
   awaiting_student: ['in_progress', 'resolved'], reopened: ['assigned', 'in_progress'], resolved: ['verified_closed'], verified_closed: [],
 };
-const STUDENT_NEXT: Record<string, string[]> = { awaiting_student: ['in_progress'], resolved: ['reopened', 'verified_closed'], verified_closed: ['reopened'] };
+export const STUDENT_NEXT: Record<string, string[]> = { awaiting_student: ['in_progress'], resolved: ['reopened', 'verified_closed'], verified_closed: ['reopened'] };
 
 /**
  * Status change with optimistic concurrency. `resolved` = staff claims resolution.

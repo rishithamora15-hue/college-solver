@@ -13,3 +13,13 @@ Never put real student records or secrets into fixtures, screenshots, commits, l
 For each implementation task report: changed files, acceptance evidence, commands actually run, untested dependencies, and remaining blockers. Never call mocked integration results live or infer passing tests from code inspection. Update the ticket evidence and release gates.
 
 Do not create extra microservices, a broker, Kubernetes, or unrestricted agent loops without a demonstrated requirement. Do not autonomously delegate work solely because this project contains runtime agents. If the user authorizes parallel coding agents, use separate worktrees and non-overlapping ownership.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

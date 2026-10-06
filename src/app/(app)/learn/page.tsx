@@ -21,11 +21,12 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
   const meta = subs[0];
   return (
     <>
-      <h1>Learn</h1>
+      <span className="page-eyebrow">Academic workspace</span><h1>Learn with your syllabus.</h1>
+      <p className="page-lead">Choose your subject, including a backlog, and explore answers grounded in approved material.</p>
       <nav aria-label="Scope" className="muted">{meta ? `${meta.branch} / ${meta.regulation}` : ''}{selected && ` / Semester ${selected.semester} / ${selected.code} ${selected.name}`}{topic && ` / ${topic.name}`}</nav>
       <section className="card">
         <h2>Subjects</h2>
-        <ul>{subs.map((s) => (
+        <ul className="subject-list">{subs.map((s) => (
           <li key={s.id}><Link href={`/learn?s=${s.id}`} aria-current={s.id === selected?.id ? 'page' : undefined}>Sem {s.semester} · {s.code} {s.name}</Link>
             {s.backlog && <> <span className="badge warn">backlog</span></>}{s.is_current && <> <span className="badge info">current</span></>}</li>
         ))}</ul>

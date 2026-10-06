@@ -1,5 +1,21 @@
 # Release evidence — evaluation pilot (synthetic data)
 
+## UI refinement evidence — 5 Oct 2026, 19:56 IST
+
+The judge-facing visual pass is **in progress** (T15). Implemented: connected four-stage brand direction, dark labeled navigation, welcome hero and real-data overview cards, clearer page hierarchy, responsive job cards, mobile fee breakdown, and restrained CSS entry/hover motion with reduced-motion handling. The synthetic-data and mock-AI labels remain visible.
+
+- `npm run typecheck`: passed after the final UI edits.
+- `npm run build`: passed after the final UI edits; 33 routes generated.
+- `npm run e2e`: **7/7 passed** after the visual capture additions, with an isolated `.next-e2e` directory. AI remained a labeled mock fixture.
+- `node scripts/visual-qa.mjs` captured 24 screenshots at desktop, tablet, mobile and reduced-motion settings; no page overflow on the five main signed-in routes. Desktop/mobile sign-in, overview, fees, learning, career and jobs were visually inspected. Final mobile job cards and wrapped navigation were inspected after correction.
+- `npx playwright test e2e/mobile.spec.ts`: passed after the responsive job-card change, with final mobile sign-in/overview/jobs screenshots in `.data/ui-qa/`.
+- `npx playwright test e2e/visual.spec.ts e2e/mobile.spec.ts`: **2/2 passed** after the responsive fee caption fix. Captures include desktop sign-in, scholarship, tutor, career, job detail and settings, plus mobile sign-in, overview, fees, scholarship, career, jobs and job detail. No page overflow on the checked routes. Sign-in, scholarship, career, job detail and settings captures were manually reviewed.
+- Playwright's default screenshot behavior injected `caret-color: transparent` before React hydrated, producing a development hydration warning on form controls. Screenshots now use `caret: 'initial'`; the symptom-specific `suppressHydrationWarning` was removed. The final captures show no red development overlay.
+
+- The full browser journeys captured complaint review, receipt, tutor answer/sources, career analysis and staff at desktop width. These images were manually inspected; the staff queue gained a card and open-count hierarchy after inspection.
+
+Remaining T15 work: inspect the stateful result screens and staff queue at tablet/mobile widths after the staff change. The app is still not hosted and live AI remains untested.
+
 Recorded Mon 5 Oct 2026, 14:40 IST, on the build machine (Windows 11, Node 22.23.2, PostgreSQL 18.4 via embedded-postgres). Every result below comes from a command that was actually run. **Nothing is deployed.** No live model was called. Supabase auth was not exercised.
 
 ## Commands and results

@@ -29,13 +29,13 @@ describe('identity and roles', () => {
   });
   it('profile edit schema rejects role/tenant fields', () => {
     expect(profileSchema.safeParse({ display_name: 'A' }).success).toBe(true);
-    expect(profileSchema.safeParse({ display_name: 'A', role: 'college_admin' }).success).toBe(false);
+    expect(profileSchema.safeParse({ display_name: 'A', role: 'admin' }).success).toBe(false);
     expect(profileSchema.safeParse({ display_name: 'A', college_id: ID.collegeB }).success).toBe(false);
   });
   it('runtime role cannot grant itself staff membership (RLS with check false)', async () => {
     const asha = await actor('asha');
-    await expect(scoped(asha, (c) => c.query(`insert into memberships values ($1,$2,'finance_staff','active')`, [ID.collegeA, asha.userId]))).rejects.toThrow();
-    await expect(scoped(asha, (c) => c.query(`update memberships set role = 'college_admin' where user_id = $1`, [asha.userId]))).rejects.toThrow(/row-level security/);
+    await expect(scoped(asha, (c) => c.query(`insert into memberships values ($1,$2,'admin','active')`, [ID.collegeA, asha.userId]))).rejects.toThrow();
+    await expect(scoped(asha, (c) => c.query(`update memberships set role = 'admin' where user_id = $1`, [asha.userId]))).rejects.toThrow(/row-level security/);
   });
 });
 

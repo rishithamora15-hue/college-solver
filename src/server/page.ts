@@ -4,11 +4,12 @@ import { resolveActor, SESSION_COOKIE, verifySession, type Actor } from './auth'
 import { tx, type Db } from './db';
 import { AppError } from './http';
 
-/** Server-component identity. Redirects to sign-in when there is no valid session/membership. */
+/** Server-component identity. No session at all -> public home page; expired/invalid session -> sign-in. */
 export async function pageActor(): Promise<Actor> {
-  const sub = verifySession((await cookies()).get(SESSION_COOKIE)?.value);
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const sub = verifySession(token);
   const a = sub ? await resolveActor(sub) : null;
-  if (!a) redirect('/signin');
+  if (!a) redirect(token ? '/signin' : '/welcome');
   return a;
 }
 export const q = <T>(a: Actor, fn: (c: Db) => Promise<T>) => tx(fn, { collegeId: a.collegeId, userId: a.userId });

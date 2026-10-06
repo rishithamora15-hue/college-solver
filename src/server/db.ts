@@ -3,6 +3,8 @@ import { env } from './env';
 
 // int8 (bigint paise) -> number: exact up to 2^53 paise.
 pg.types.setTypeParser(20, Number);
+// numeric (CGPA, marks) -> number: small decimals only; money never uses numeric.
+pg.types.setTypeParser(1700, parseFloat);
 
 export type Db = pg.PoolClient;
 export type Scope = { collegeId: string; userId?: string };

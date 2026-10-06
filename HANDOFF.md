@@ -11,7 +11,7 @@ Status: the app is complete and verified **locally** on synthetic data (see [doc
 5. **Render.** New Blueprint → this repo → fill the `sync:false` values. Set `APP_ORIGIN` to the exact `https://…onrender.com` origin. Deploy. `preDeployCommand` runs the migrations.
 6. **Seed synthetic data once** from your machine: `DATABASE_URL=<supabase url> npm run db:seed`.
 7. **Turn on live AI.** On both services set `AI_PROVIDER=anthropic`, then run one tutor question. The run banner must show "Live AI: <model>", not "Mock".
-8. **Hosted smoke.** `/api/v1/health/ready` returns 200. Sign in as `asha` and complete the four journeys. Sign in as `meera` and confirm `/fees/00000000-0000-4000-8000-000000000073` shows "not found".
+8. **Hosted smoke.** `/api/v1/health/ready` returns 200. Sign in as student `asha@college-a.example` (roll number `22A91A0501`) and complete the four journeys. Sign in as `meera@college-b.example` (`22B81A0501`) and confirm `/fees/00000000-0000-4000-8000-000000000073` shows "not found".
 9. **Rollback rehearsal.** Render → web service → Rollback to the previous deploy, then confirm health. Record the result in RELEASE-EVIDENCE.md.
 10. **Alerts.** Render notifications for deploy failures and health check failures, plus a Supabase usage alert.
 

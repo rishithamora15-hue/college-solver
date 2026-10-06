@@ -82,6 +82,8 @@ If starting later, preserve authentication, isolation, source labeling, and reco
 
 Use [DESIGN.md](DESIGN.md) for screen contracts. Spend at most 45 minutes on a component/theme pass and low-fidelity layouts. Choose mobile-first, legible spacing, visible sources, explicit action review, and keyboard-accessible forms. Build one reusable shell and status vocabulary. Do not create four disconnected landing pages.
 
+**User refinement on 5 October:** the judge-facing UI is now an explicit deliverable, not merely a functional shell. T15 in [BACKLOG.md](BACKLOG.md) and the expanded [DESIGN.md](DESIGN.md) define a visual direction, motion behavior, responsive layouts, visual QA and demo choreography. After the core flows, allocate a focused visual polish and screenshot-review block before the final freeze. Preserve security and operational release gates while improving presentation.
+
 ## 7. Completion evidence
 
 Evaluation pilot: user logs in, sees their synthetic balance, investigates missing scholarship credit, submits one complaint, sees staff response; studies a backlog subject with citations; uploads or enters a resume, compares a JD, opens an official job application link. Restart the worker during a run and recover without duplicate complaint/reminder effects. Another student's guessed IDs return denial. Show timestamps and dataset labels throughout.

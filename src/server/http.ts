@@ -75,3 +75,32 @@ export async function idempotent<T>(c: Db, a: Actor, op: string, key: string | n
   await c.query('insert into idempotency_keys (college_id, user_id, op, key, request_hash, response) values ($1,$2,$3,$4,$5,$6)', [a.collegeId, a.userId, op, key, hash, JSON.stringify(res)]);
   return res;
 }
+
+/** CSV download that opens cleanly in Excel (UTF-8 BOM, quoted cells, formula-injection guard). */
+export function csv(filename: string, rows: unknown[][]) {
+  const cell = (v: unknown) => {
+    let t = v === null || v === undefined ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v);
+    if (/^[=+\-@]/.test(t)) t = "'" + t;
+    return /[",\n]/.test(t) ? `"${t.replaceAll('"', '""')}"` : t;
+  };
+  return new Response('﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n'), { headers: {
+    'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="${filename}"`, 'cache-control': 'no-store',
+  } });
+}
+
+/** Multipart upload: one file, size-limited, type decided by magic bytes (never by the client's claim). */
+export const formOf = (req: NextRequest) => req.formData().catch(() => { throw new AppError(400, 'bad_form', 'Upload a file'); });
+export async function fileFrom(form: FormData, field: string, maxBytes: number, allowed: string[]) {
+  const f = form.get(field);
+  if (!(f instanceof File) || !f.size) throw new AppError(400, 'validation', 'Choose a file to upload', { fields: [field] });
+  if (f.size > maxBytes) throw new AppError(413, 'too_large', `File is larger than ${Math.round(maxBytes / 1048576)} MB`);
+  const bytes = Buffer.from(await f.arrayBuffer());
+  const mime = sniff(bytes);
+  if (!mime || !allowed.includes(mime)) throw new AppError(415, 'bad_type', `Allowed: ${allowed.map((m) => m.split('/')[1].toUpperCase()).join(', ')}`);
+  return { bytes, mime, name: f.name.replace(/[^\w .-]/g, '_').slice(0, 100) || 'file' };
+}
+const sniff = (b: Buffer) =>
+  b.subarray(0, 4).toString('latin1') === '%PDF' ? 'application/pdf'
+    : b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff ? 'image/jpeg'
+    : b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'image/png'
+    : !b.subarray(0, 4096).includes(0) ? 'text/plain' : null;

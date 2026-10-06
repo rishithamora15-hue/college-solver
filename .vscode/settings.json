@@ -1,0 +1,20 @@
+{
+  "files.exclude": {
+    "**/.next": true,
+    "**/.next-e2e": true,
+    "**/.data": true,
+    "**/node_modules": true,
+    "**/playwright-report": true,
+    "**/test-results": true,
+    "**/next-env.d.ts": true,
+    "**/*.tsbuildinfo": true
+  },
+  "search.exclude": {
+    "**/.next": true,
+    "**/.next-e2e": true,
+    "**/.data": true,
+    "**/node_modules": true,
+    "**/playwright-report": true,
+    "**/test-results": true
+  }
+}

@@ -5,7 +5,7 @@ export const metadata = { title: 'College Problem Solver (evaluation)', descript
 
 export default function Root({ children }: { children: ReactNode }) {
   return (
-    <html lang="en-IN">
+    <html lang="en-IN" data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   );

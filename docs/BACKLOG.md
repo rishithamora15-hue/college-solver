@@ -7,6 +7,7 @@ All tickets start **not implemented**. Estimates are focused engineering time an
 - **T00–T13 implemented and verified locally.** T07 uses seeded curated documents. T09 uses pasted text because uploads are disabled.
 - **T14 partial.** Done: `render.yaml`, the production smoke and the local restore drill. Blocked: the hosted deploy, hosted smoke, rollback and alerts. These need Render/Supabase access and spend approval.
 - **Live-AI acceptance is untested.** There is no key, so every AI check ran on the labeled mock.
+- **T15 visual refinement is in progress.** Shared shell, sign-in, overview, finance, learning, career, jobs, detail pages and settings have a responsive visual pass. Complaint review/receipt, tutor result, career result and staff were reviewed at desktop width. Remaining: stateful result and staff screenshot review at tablet/mobile widths.
 
 | ID / estimate | Depends on | Deliverable / likely files | Done when | Primary skill |
 |---|---|---|---|---|
@@ -25,6 +26,7 @@ All tickets start **not implemented**. Estimates are focused engineering time an
 | T12 / 1.5h | T06,T08,T09,T10,T11 | Browser flows, API contracts, adversarial AI cases, stale-source tests | Evidence for all core flows; failures mapped to owner/ticket | `college-testing` |
 | T13 / 1.5h | T12 | Threat-focused review, secret/dependency scans, negative access suite, hardening | All evaluation blockers resolved; real-data blockers explicitly recorded | `college-security` |
 | T14 / 2h | T13 | Deployment config, immutable candidate, smoke tests, restore/rollback and alerts | Release gate evidence, tested rollback, operator handoff | `college-release`, `college-operations` |
+| T15 / 2-3h | T02,T05,T08,T09,T10 | Judge-facing UI refinement: design tokens, purposeful motion, all journey screens, responsive and reduced-motion QA | Visual screenshots reviewed at three viewports; all existing flows pass; no synthetic/live ambiguity | `college-design`, `college-testing` |
 
 Timeboxes overlap conceptually with the calendar's review/buffer windows, not permission to skip acceptance. At the end of each ticket, stop adding features and record the next dependency.
 

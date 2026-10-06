@@ -27,7 +27,12 @@ def main():
         mirror = ROOT / '.claude' / 'skills' / name / 'SKILL.md'
         if not mirror.exists() or path.read_bytes() != mirror.read_bytes():
             errors.append(f'Missing/drifted Claude mirror: {name}')
-    for path in ROOT.rglob('*.md'):
+    project_docs = [ROOT / name for name in ('README.md', 'AGENTS.md', 'CLAUDE.md', 'SKILLS.md', 'VALIDATION.md')]
+    project_docs.extend((ROOT / 'docs').glob('*.md'))
+    project_docs.extend(skills)
+    for path in project_docs:
+        if not path.exists():
+            continue
         text = path.read_text(encoding='utf-8')
         for target in re.findall(r'(?<!!)\[[^\]\n]+\]\(([^)\n]+)\)', text):
             if target.startswith(('http://', 'https://', '#', 'mailto:')):

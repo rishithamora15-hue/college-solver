@@ -1,5 +1,49 @@
 # Product and interface specification
 
+## Creative direction: “one connected journey”
+
+The presentation should feel like a polished student command centre, with the seriousness of a financial portal and the energy of a modern learning/career app. Visual storytelling follows **Support → Learn → Prepare → Apply**, the four stages of one journey. The current application already works locally; this specification guides its refinement, not a new mockup.
+
+Brand shorthand: **College Solver**. Primary visual: a deep navy navigation rail and a luminous blue/teal welcome canvas. The four stages appear as compact chips and as a connected orbit motif on the overview. Distinguish meaning through structure and copy: verified facts sit in crisp white surfaces; pending/uncertain data gets explicit labels and source freshness. Decorative effects never obscure important figures.
+
+Keep the app credible. No fake charts, animated success percentages, empty glass panels, unearned “AI magic” claims or simulated live job listings. A judge should understand a student action in seconds and trust what the UI says.
+
+## Design tokens and composition
+
+The initial implementation lives in `src/app/globals.css`. Starting palette: ink `#142340`, canvas `#f3f6fb`, white surface, action blue `#155fc7`, mint highlight, and semantic green/amber/red. Verify final text and component contrast in the actual rendered UI. Use an 8 px spacing rhythm, 16-25 px card padding, 16-18 px body, compact labels, 16-25 px radii, and restrained shadows. Large headings use tight tracking; important numbers use tabular numerals.
+
+The shell is a 248 px dark rail on wide screens, a 205 px rail on medium widths, and a single row of horizontally scrollable labeled navigation on small screens. Main content uses a generous max width rather than stretching tables across ultrawide displays. A persistent, small evaluation strip makes synthetic data and mock/live AI status unambiguous. The top bar shows college identity, notifications and sign out.
+
+The overview hero should present the product promise in one sentence, two relevant actions, and the four-module orbit. Below it, a two-column grid at desktop collapses to one column on tablet/mobile. The first card shows actual ledger outstanding, the second outstanding actions, the third learning continuity, and the fourth career opportunities. Those are real data projections. Screens beyond overview use an eyebrow, a concise task title and one-sentence explanation, then task-specific content.
+
+## Motion language
+
+Motion communicates state and relationships. Keep first paint fast. Use CSS transform and opacity for a 350-450 ms initial rise of the hero/card group, staggered by at most 50 ms per overview card. Hover lifts cards 3-4 px over about 200 ms and action buttons 2 px over about 160 ms. Active nav highlights shift immediately with a short color fade. The orbit floats slowly (about 7 seconds) as the sole continuous decoration and is hidden on mobile.
+
+Meaningful transitions to build next: a status step becomes visually active after a verified backend update; queued AI work shows a calm indeterminate progress treatment and then a single completion reveal; complaint submission swaps the editable draft for a durable receipt; resume suggestions reveal original/proposed text without hiding either. These must reflect actual state and preserve keyboard focus. No animated counter may run ahead of the verified number. Do not use scroll parallax, bouncing finance figures, spinning loaders with no status, or motion that delays a click.
+
+Respect `prefers-reduced-motion`: remove nonessential movement and smooth scrolling while preserving state cues, focus, color and text. W3C explains why interaction-triggered motion needs a way to be disabled in [WCAG 2.2 animation guidance](https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html). Component boundaries and important status cues need sufficient contrast under [WCAG non-text contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html). If the team adds a React animation library later, use its reduced-motion support; CSS covers the current scope without a dependency.
+
+## Judge demo choreography (3–4 minutes)
+
+1. **The problem, 15 seconds.** Sign in as a synthetic student. The overview instantly shows the four linked stages and a real pending action. State that the dataset is fictional.
+2. **Support, 50 seconds.** Open Fees. Show actual ledger outstanding alongside approved but uncredited scholarship. Open the case timeline and ask the scholarship specialist for an explanation. Review the complaint draft, edit it and submit; show the stored receipt. The judge should see the boundary between AI explanation and committed action.
+3. **Learn, 40 seconds.** Open a previous-semester backlog subject, ask about DBMS, then point to source/page and paper download. Switch subjects to show the scope resets.
+4. **Prepare and apply, 50 seconds.** In Career, compare a confirmed resume to a JD; highlight factual suggested edits and gaps. Open a linked job, show eligibility/source freshness, then the official application link.
+5. **Engineering proof, 30 seconds.** Show the worker/run state and a concise recovery test result or log. Explain that the UI is backed by a separate worker and durable jobs. If live AI is unavailable, clearly identify the fixture provider.
+
+The demo should require no manual URL edits or hidden setup after sign-in. Prepare one seed account, one pending scholarship, one backlog subject, one resume and one suitable job. Never call an example vacancy real. Rehearse both a 390 px phone viewport and a 1280 px desktop. Have a short recording as a presentation fallback, labeled as recorded.
+
+## Visual QA acceptance
+
+- Screens: sign-in, overview, fees, scholarship detail, complaint review/receipt, learn/tutor, career/results, jobs/detail, staff and settings.
+- Viewports: 390×844, 768×1024 and 1280×800; no page-level horizontal overflow, clipped actions, overlapping menus or illegible labels.
+- Browser journey still completes after styling; important button and link names remain stable.
+- Motion: inspect default and reduced-motion modes; content remains available without animation and no continuous effect distracts on task screens.
+- Forms: error summary and focus, visible loading/queued/completed states, preserved entries after transient failures.
+- Contrast: text, focus ring, controls and semantic badges checked in rendered output. Status remains readable without color.
+- Output evidence: screenshots of desktop overview, mobile overview, scholarship action, tutor citation, resume result and job detail; manually inspect them. The current project has no visual screenshot baseline, so do not claim one exists.
+
 ## Shared shell
 
 Desktop: sidebar with Overview, Fees & Scholarships, Learn, Career, Jobs; top bar with college, profile, notifications. Mobile: compact primary navigation with a labeled More menu; content remains usable at 360 px width. Staff sees an additional scoped Workspace entry. Never show unauthorized navigation as the only access control.

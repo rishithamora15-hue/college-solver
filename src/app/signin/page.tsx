@@ -1,21 +1,18 @@
-import { env } from '@/server/env';
-import { many, tx } from '@/server/db';
-import { DemoSignIn, PasswordSignIn } from '../client';
+import Link from 'next/link';
+import { SignInPortal } from '../client';
 
-export const dynamic = 'force-dynamic';
-
-export default async function SignIn() {
-  const demo = env().AUTH_MODE === 'demo';
-  // Synthetic demo accounts only (auth_subject 'demo:*'); app_users holds no secrets.
-  const users = demo ? await tx((c) => many(c, `select substr(auth_subject, 6) handle, display_name from app_users where auth_subject like 'demo:%' order by display_name`)) : [];
+export default async function SignIn({ searchParams }: { searchParams: Promise<{ as?: string }> }) {
+  const as = (await searchParams).as;
   return (
-    <main id="main" style={{ maxWidth: 640, margin: '0 auto' }}>
-      <h1>College Problem Solver</h1>
-      <div className="banner warn" role="note">Evaluation pilot with <strong>synthetic data only</strong>. Do not enter real student records.</div>
-      {demo ? <>
-        <h2>Choose a synthetic demo account</h2>
-        <DemoSignIn users={users.map((u) => ({ handle: u.handle, name: u.display_name }))} />
-      </> : <PasswordSignIn />}
+    <main id="main" className="signin-main">
+      <div className="signin-scene" aria-hidden="true"><span className="blob b1" /><span className="blob b2" /><span className="blob b3" /></div>
+      <section className="signin-panel entry-rise" aria-labelledby="signin-title">
+        <Link href="/welcome" className="back-link">← Home</Link>
+        <div className="signin-brand"><span className="brand-mark" aria-hidden="true">✦</span><span>College Solver</span></div>
+        <h1 id="signin-title">Welcome back.</h1>
+        <p className="signin-sub">Choose how you sign in.</p>
+        <SignInPortal initial={as === 'student' || as === 'staff' ? as : null} />
+      </section>
     </main>
   );
 }

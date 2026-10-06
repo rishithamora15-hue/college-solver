@@ -11,7 +11,8 @@ export default async function Career() {
   const latest = versions.find((v) => v.confirmed_at);
   return (
     <>
-      <h1>Career</h1>
+      <span className="page-eyebrow">Career studio</span><h1>Make your experience count.</h1>
+      <p className="page-lead">Confirm your real skills, compare them with a role and improve each application with confidence.</p>
       <ResumeEditor initial={(latest?.facts.items ?? []).map((f: any) => ({ section: f.section, text: f.text }))} />
       <section className="card">
         <h2>3. Compare with a job</h2>

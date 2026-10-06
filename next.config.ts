@@ -14,6 +14,7 @@ const csp = [
 ].join('; ');
 
 const config: NextConfig = {
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   poweredByHeader: false,
   devIndicators: false,
   serverExternalPackages: ['pg', 'embedded-postgres'],

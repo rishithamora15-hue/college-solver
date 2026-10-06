@@ -11,7 +11,8 @@ export default async function NewComplaint({ searchParams }: { searchParams: Pro
   if (!d) return <NotFound what="This draft" />;
   return (
     <>
-      <h1>Review complaint</h1>
+      <span className="page-eyebrow">Scholarship support / final review</span><h1>Review your complaint.</h1>
+      <p className="page-lead">Check the recipient and message before you create a tracked complaint.</p>
       {d.run_id && <p className="muted">Draft prepared by the AI scholarship specialist. Edit anything before submitting.</p>}
       <ComplaintReview draft={{ id: d.id, subject: d.subject, body: d.body, case_version: d.case_version, department: d.department, contact_label: d.contact_label }} />
     </>

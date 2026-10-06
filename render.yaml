@@ -20,9 +20,7 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: AUTH_MODE
-        value: demo            # switch to supabase once SUPABASE_URL / SUPABASE_ANON_KEY are set
-      - key: DEMO_AUTH
-        value: allow           # synthetic evaluation only; remove before any real data
+        value: local           # email + password (scrypt) in the app database; or supabase
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
@@ -57,8 +55,6 @@ services:
         fromService: { type: web, name: college-solver-web, envVarKey: SESSION_SECRET }
       - key: AUTH_MODE
         fromService: { type: web, name: college-solver-web, envVarKey: AUTH_MODE }
-      - key: DEMO_AUTH
-        fromService: { type: web, name: college-solver-web, envVarKey: DEMO_AUTH }
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY

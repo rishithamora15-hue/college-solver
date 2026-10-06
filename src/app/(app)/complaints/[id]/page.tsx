@@ -10,10 +10,11 @@ export default async function Complaint({ params, searchParams }: { params: Prom
   const a = await pageActor();
   const cm = isUuid(id) ? await orNull(q(a, (c) => complaintView(c, a, id))) : null;
   if (!cm) return <NotFound what="This complaint" />;
-  const staff = a.roles.includes('finance_staff');
+  const staff = a.roles.includes('admin');
   return (
     <>
-      <h1>Complaint {cm.receipt_no}</h1>
+      <span className="page-eyebrow">Scholarship support / tracked case</span><h1>Complaint {cm.receipt_no}</h1>
+      <p className="page-lead">A record of what was submitted, who is handling it and what has been verified.</p>
       {sp.receipt && <div className="banner info" role="status">Saved. Your receipt number is <strong>{cm.receipt_no}</strong>. It is recorded with {cm.department}; no external email was sent.</div>}
       <section className="card">
         <p>Status: <Status s={cm.status} /> · Department: {cm.department} · Submitted {when(cm.created_at)}</p>
@@ -24,7 +25,7 @@ export default async function Complaint({ params, searchParams }: { params: Prom
       <section className="card">
         <h2>Timeline</h2>
         <ol className="timeline">{cm.events.map((e: any, i: number) => (
-          <li key={i}><Status s={e.status} /> by {e.actor_role.replace('_', ' ')} · {when(e.created_at)}{e.note && <> — {e.note}</>}
+          <li key={i}><Status s={e.status} /> by {e.actor_role === 'admin' ? 'administration office' : e.actor_role.replace('_', ' ')} · {when(e.created_at)}{e.note && <> — {e.note}</>}
             {e.verification_basis && <div className="muted">Verification basis: {e.verification_basis.startsWith('source_credit_receipt') ? `ledger credit receipt ${e.verification_basis.split(':')[1]}` : 'confirmation by student (does not change the ledger)'}</div>}
           </li>
         ))}</ol>

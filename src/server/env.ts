@@ -4,8 +4,7 @@ const schema = z.object({
   NODE_ENV: z.string().default('development'),
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(32),
-  AUTH_MODE: z.enum(['demo', 'supabase']).default('demo'),
-  DEMO_AUTH: z.string().optional(),
+  AUTH_MODE: z.enum(['local', 'supabase']).default('local'),
   SUPABASE_URL: z.string().url().optional().or(z.literal('')),
   SUPABASE_ANON_KEY: z.string().optional(),
   AI_PROVIDER: z.enum(['anthropic', 'fixture', 'none']).default('none'),
@@ -25,7 +24,6 @@ export function env(): Env {
   if (!r.success) throw new Error('Invalid configuration: ' + r.error.issues.map((i) => i.path.join('.')).join(', '));
   const e = r.data;
   const prod = e.NODE_ENV === 'production';
-  if (prod && e.AUTH_MODE === 'demo' && e.DEMO_AUTH !== 'allow') throw new Error('AUTH_MODE=demo refused in production without DEMO_AUTH=allow');
   if (e.AUTH_MODE === 'supabase' && (!e.SUPABASE_URL || !e.SUPABASE_ANON_KEY)) throw new Error('Supabase auth needs SUPABASE_URL and SUPABASE_ANON_KEY');
   if (prod && e.AI_PROVIDER === 'fixture') throw new Error('AI_PROVIDER=fixture (mock) refused in production');
   if (e.AI_PROVIDER === 'anthropic' && (!e.ANTHROPIC_API_KEY || !e.RUNTIME_MODEL)) throw new Error('anthropic provider needs ANTHROPIC_API_KEY and RUNTIME_MODEL');

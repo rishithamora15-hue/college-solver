@@ -4,12 +4,19 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 
-type ApiErr = { code: string; message: string; request_id: string; fields?: string[]; retry_after_s?: number };
+type ApiErr = { code: string; message: string; request_id: string; fields?: string[]; retry_after_s?: number; problems?: string[] };
 export async function api<T = any>(path: string, method = 'POST', body?: unknown, idemKey?: string): Promise<T> {
   const res = await fetch(path, {
     method, headers: { 'content-type': 'application/json', ...(idemKey ? { 'idempotency-key': idemKey } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  const data = await res.json().catch(() => ({ error: { code: 'network', message: 'Unexpected response', request_id: '-' } }));
+  if (!res.ok) throw data.error as ApiErr;
+  return data;
+}
+
+async function upload<T = any>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(path, { method: 'POST', body: form });
   const data = await res.json().catch(() => ({ error: { code: 'network', message: 'Unexpected response', request_id: '-' } }));
   if (!res.ok) throw data.error as ApiErr;
   return data;
@@ -22,15 +29,40 @@ export function ErrorBox({ err }: { err: ApiErr | null }) {
   return (
     <div ref={ref} tabIndex={-1} role="alert" className="banner bad">
       {err.message}{err.fields?.length ? ` (${err.fields.join(', ')})` : ''} <span className="muted">· ref {err.request_id}</span>
+      {err.problems?.length ? <ul className="problems">{err.problems.map((p) => <li key={p}>{p}</li>)}</ul> : null}
     </div>
   );
 }
 
+const ICONS: Record<string, string> = {
+  home: 'M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z',
+  fees: 'M4 3h16v18l-4-2-4 2-4-2-4 2z M8 8h8 M8 12h8',
+  learn: 'M3 5c4-2 7-1 9 1 2-2 5-3 9-1v14c-4-2-7-1-9 1-2-2-5-3-9-1z M12 6v14',
+  career: 'M3 8h18v13H3z M8 8V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v3 M3 13h18',
+  jobs: 'M4 7h16v14H4z M9 7V4h6v3 M4 13h16',
+  complaints: 'M4 4h16v13H9l-5 4z M8 9h8 M8 13h5',
+  settings: 'M12 3v3 M12 18v3 M3 12h3 M18 12h3 M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  admin: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z',
+  placement: 'M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 16.5 6.5 19.5l1-6.3L3 8.9 9 8z',
+  academics: 'M3 4h18v17H3z M3 9h18 M8 2v4 M16 2v4 M7 13h3 M14 13h3 M7 17h3',
+  requests: 'M6 2h9l5 5v15H6z M14 2v6h6 M9 13h8 M9 17h6',
+  faculty: 'M12 3 2 8l10 5 10-5z M6 10v6c3 2 9 2 12 0v-6',
+  students: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21c0-4 3-6 7-6s7 2 7 6 M17 11a3 3 0 1 0 0-6 M22 21c0-3-2-5-5-5',
+  notices: 'M3 11v2l13 5V6z M16 8a4 4 0 0 1 0 8 M6 13l1 6h3l-1-5',
+  stats: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2',
+};
+
 export function NavLinks({ items }: { items: [string, string][] }) {
   const path = usePathname();
-  return <>{items.map(([href, label]) => (
-    <Link key={href} href={href} aria-current={(href === '/' ? path === '/' : path.startsWith(href)) ? 'page' : undefined}>{label}</Link>
-  ))}</>;
+  const active = items.map(([h]) => h).filter((h) => (h === '/' ? path === '/' : path === h || path.startsWith(h + '/'))).sort((x, y) => y.length - x.length)[0];
+  return <>{items.map(([href, label]) => {
+    const tone = href.split('/').pop() || 'home';
+    return (
+      <Link key={href} href={href} data-tone={tone} aria-current={href === active ? 'page' : undefined}>
+        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[tone] ?? ICONS.home} /></svg>{label}
+      </Link>
+    );
+  })}</>;
 }
 
 export function SignOut() {
@@ -38,40 +70,135 @@ export function SignOut() {
   return <button className="secondary" onClick={async () => { await api('/api/v1/auth/signout'); r.push('/signin'); r.refresh(); }}>Sign out</button>;
 }
 
-export function DemoSignIn({ users }: { users: { handle: string; name: string }[] }) {
-  const r = useRouter();
+/** Two portals only. Students: college email + roll number. Staff: assigned credentials; the server routes admin vs placement. */
+const CAP = 'M2 9l10-5 10 5-10 5z M6 11v5c3 2.5 9 2.5 12 0v-5 M22 9v6';
+const DESK = 'M3 21h18 M5 21V8l7-5 7 5v13 M9 21v-5h6v5 M9 10h.01 M15 10h.01 M12 10h.01';
+
+export function SignInPortal({ initial = null }: { initial?: 'student' | 'staff' | null }) {
+  const [portal, setPortal] = useState<'student' | 'staff' | null>(initial);
   const [err, setErr] = useState<ApiErr | null>(null);
+  const [busy, setBusy] = useState(false);
+  const r = useRouter();
+  if (!portal) return (
+    <div className="portal-choice">
+      {([['student', 'Student', 'Sign in with your college email', CAP], ['staff', 'Faculty & Staff', 'Faculty · Administration office · Placement cell', DESK]] as const).map(([k, title, sub, icon]) => (
+        <button key={k} type="button" className={`portal-card portal-${k}`} onClick={() => setPortal(k)}>
+          <span className="portal-art" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={icon} /></svg></span>
+          <span className="portal-text"><strong>{title}</strong><small>{sub}</small></span>
+          <span className="portal-go" aria-hidden="true">→</span>
+        </button>
+      ))}
+    </div>
+  );
+  const student = portal === 'student';
   return (
-    <>
+    <form className={`portal-form portal-${portal}`} onSubmit={async (e) => {
+      e.preventDefault(); setBusy(true); setErr(null);
+      const f = new FormData(e.currentTarget);
+      try {
+        const res = await api('/api/v1/auth/password', 'POST', { portal, email: f.get('email'), password: f.get('password') });
+        r.push(res.next); r.refresh();
+      } catch (x) { setErr(x as ApiErr); setBusy(false); }
+    }}>
+      <button type="button" className="back-link" onClick={() => { setPortal(null); setErr(null); }}>← Back</button>
+      <h2>{student ? 'Student sign-in' : 'Faculty & staff sign-in'}</h2>
       <ErrorBox err={err} />
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {users.map((u) => (
-          <li key={u.handle} className="card row" style={{ alignItems: 'center' }}>
-            <div><strong>{u.name}</strong></div>
-            <button style={{ flex: '0 0 auto' }} onClick={async () => {
-              try { await api('/api/v1/auth/demo', 'POST', { handle: u.handle }); r.push('/'); r.refresh(); } catch (e) { setErr(e as ApiErr); }
-            }}>Sign in as {u.handle}</button>
-          </li>
-        ))}
-      </ul>
-    </>
+      <label htmlFor="email">{student ? 'College email' : 'Staff email'}</label>
+      <input id="email" name="email" type="email" autoComplete="username" required autoFocus placeholder={student ? 'you@college.edu' : 'name@college.edu'} />
+      <label htmlFor="password">{student ? 'Password (your roll number)' : 'Password'}</label>
+      <input id="password" name="password" type="password" autoComplete="current-password" required />
+      <button className="wide" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+    </form>
   );
 }
 
-export function PasswordSignIn() {
+type Notice = { id: string; title: string; body: string; sender: string | null; created_at: string; read_at: string | null };
+const ago = (d: string) => { const m = Math.round((Date.now() - +new Date(d)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : new Date(d).toLocaleDateString('en-IN', { dateStyle: 'medium' }); };
+
+/**
+ * Bell + pop-ups. Polls every 5 s while the tab is visible, so a notice raised by the office appears within seconds.
+ * ponytail: polling; switch to SSE + LISTEN/NOTIFY if thousands of students are online at once.
+ */
+const TOAST_MAX = 2, TOAST_MS = 8000;
+export function NoticeCenter({ initial }: { initial: Notice[] }) {
+  const [items, setItems] = useState(initial);
+  const [toasts, setToasts] = useState<Notice[]>(() => initial.filter((n) => !n.read_at && n.sender).slice(0, TOAST_MAX));
+  const [open, setOpen] = useState(false);
+  const seen = useRef(new Set(initial.map((n) => n.id)));
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const box = useRef<HTMLDivElement>(null);
   const r = useRouter();
-  const [err, setErr] = useState<ApiErr | null>(null);
+  // Pop-ups tuck themselves away so they never sit on top of the page; they stay unread in the bell.
+  useEffect(() => {
+    for (const n of toasts) if (!timers.current.has(n.id))
+      timers.current.set(n.id, setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== n.id)), TOAST_MS));
+  }, [toasts]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const next = (await api<{ items: Notice[] }>('/api/v1/notifications', 'GET')).items;
+          const fresh = next.filter((n) => !seen.current.has(n.id) && !n.read_at);
+          fresh.forEach((n) => seen.current.add(n.id));
+          setItems(next);
+          if (fresh.length) { setToasts((ts) => [...fresh, ...ts].slice(0, TOAST_MAX)); r.refresh(); }
+        } catch { /* offline or signed out: try again next tick */ }
+      }
+      t = setTimeout(poll, 5000);
+    };
+    t = setTimeout(poll, 5000);
+    return () => clearTimeout(t);
+  }, [r]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => { if (e instanceof KeyboardEvent ? e.key === 'Escape' : !box.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', close); document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
+  }, [open]);
+  const markRead = (ids?: string[]) => {
+    api('/api/v1/notifications', 'PATCH', ids ? { ids } : { all: true }).catch(() => {});
+    const now = new Date().toISOString();
+    setItems((xs) => xs.map((n) => (!ids || ids.includes(n.id) ? { ...n, read_at: n.read_at ?? now } : n)));
+    setToasts((ts) => (ids ? ts.filter((x) => !ids.includes(x.id)) : []));
+  };
+  const unread = items.filter((n) => !n.read_at).length;
   return (
-    <form className="card" onSubmit={async (e) => {
-      e.preventDefault();
-      const f = new FormData(e.currentTarget);
-      try { await api('/api/v1/auth/password', 'POST', { email: f.get('email'), password: f.get('password') }); r.push('/'); r.refresh(); } catch (x) { setErr(x as ApiErr); }
-    }}>
-      <ErrorBox err={err} />
-      <label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="username" required />
-      <label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete="current-password" required />
-      <p><button>Sign in</button></p>
-    </form>
+    <>
+      <div className="bell-wrap" ref={box}>
+        <button type="button" className="bell" aria-expanded={open} aria-label={`Notifications, ${unread} unread`} onClick={() => setOpen(!open)}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>
+          {unread > 0 && <span className="bell-count">{unread}</span>}
+        </button>
+        {open && (
+          <div className="bell-panel" role="dialog" aria-label="Notifications">
+            <div className="bell-head"><strong>Notifications</strong>{unread > 0 && <button type="button" className="text-btn" onClick={() => markRead()}>Mark all read</button>}</div>
+            {!items.length ? <p className="muted">You're all caught up.</p> : (
+              <ul>{items.map((n) => (
+                <li key={n.id} className={n.read_at ? '' : 'unread'}>
+                  {n.sender && <span className="notice-from">{n.sender}</span>}
+                  <strong>{n.title}</strong>{n.body && <p>{n.body}</p>}
+                  <small>{ago(n.created_at)}{!n.read_at && <> · <button type="button" className="text-btn" onClick={() => markRead([n.id])}>Mark read</button></>}</small>
+                </li>
+              ))}</ul>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="toast-stack" aria-live="polite">
+        {toasts.map((n) => (
+          <div key={n.id} className="toast" role="status">
+            <span className="toast-dot" aria-hidden="true" />
+            <div>
+              <span className="notice-from">{n.sender ?? 'Update'}</span>
+              <strong>{n.title}</strong>{n.body && <p>{n.body}</p>}
+            </div>
+            <button type="button" className="text-btn" onClick={() => markRead([n.id])}>Got it</button>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -312,32 +439,703 @@ export function ApplyButtons({ id, url, state }: { id: string; url: string; stat
   );
 }
 
-export function PrefsForm({ enabled, displayName }: { enabled: boolean; displayName: string }) {
+export function PrefsForm({ enabled, displayName, phone }: { enabled: boolean; displayName: string; phone: string }) {
   const [err, setErr] = useState<ApiErr | null>(null);
   const [msg, setMsg] = useState('');
   return (
     <>
       <ErrorBox err={err} />
-      <form className="card" onSubmit={async (e) => {
-        e.preventDefault();
-        const f = new FormData(e.currentTarget);
-        try { await api('/api/v1/notification-preferences', 'PATCH', { reminders_enabled: f.get('rem') === 'on' }); setMsg('Preferences saved'); } catch (x) { setErr(x as ApiErr); }
-      }}>
-        <h2>Reminders</h2>
-        <label><input type="checkbox" name="rem" defaultChecked={enabled} style={{ width: 'auto' }} /> In-app fee and document reminders</label>
-        <p><button>Save preferences</button></p>
-      </form>
-      <form className="card" onSubmit={async (e) => {
-        e.preventDefault();
-        const f = new FormData(e.currentTarget);
-        try { await api('/api/v1/me/profile', 'PATCH', { display_name: f.get('dn') }); setMsg('Profile saved'); } catch (x) { setErr(x as ApiErr); }
-      }}>
-        <h2>Profile</h2>
-        <label htmlFor="dn">Display name</label><input id="dn" name="dn" defaultValue={displayName} maxLength={80} required />
-        <p className="muted">Role and college come from your institution's membership records and cannot be edited here.</p>
-        <p><button>Save profile</button></p>
-      </form>
+      <div className="settings-grid">
+        <form className="card tone-violet" onSubmit={async (e) => {
+          e.preventDefault(); setErr(null); setMsg('');
+          const f = new FormData(e.currentTarget);
+          try { await api('/api/v1/me/profile', 'PATCH', { display_name: f.get('dn'), phone: f.get('phone') }); setMsg('Profile saved'); } catch (x) { setErr(x as ApiErr); }
+        }}>
+          <h2>Profile</h2>
+          <label htmlFor="dn">Display name</label><input id="dn" name="dn" defaultValue={displayName} maxLength={80} required />
+          <label htmlFor="phone">Mobile number</label>
+          <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" defaultValue={phone} placeholder="10-digit mobile number" maxLength={16} pattern="(\+?91)?[\s-]*[6-9](?:[\s-]*\d){9}" />
+          <p className="muted">The college office uses this number to find you and send you notices.</p>
+          <p><button>Save profile</button></p>
+        </form>
+        <form className="card tone-teal" onSubmit={async (e) => {
+          e.preventDefault(); setErr(null); setMsg('');
+          const f = new FormData(e.currentTarget);
+          try { await api('/api/v1/notification-preferences', 'PATCH', { reminders_enabled: f.get('rem') === 'on' }); setMsg('Preferences saved'); } catch (x) { setErr(x as ApiErr); }
+        }}>
+          <h2>Reminders</h2>
+          <label className="check"><input type="checkbox" name="rem" defaultChecked={enabled} /> Fee and document reminders</label>
+          <p className="muted">Notices from the administration office and placement cell always reach you.</p>
+          <p><button>Save preferences</button></p>
+        </form>
+      </div>
       {msg && <p role="status" className="ok">{msg}</p>}
     </>
+  );
+}
+
+// ---- Administration office
+
+const TEMPLATES: [string, string][] = [
+  ['Document verification pending', 'Your scholarship document verification is pending. Please submit the required documents at the administration office.'],
+  ['Fee payment reminder', 'Your fee payment is due. Please clear the outstanding amount before the due date.'],
+  ['Scholarship update', 'There is an update on your scholarship. Open Fees & Scholarships for details.'],
+  ['Visit the administration office', 'Please visit the administration office at the earliest.'],
+];
+
+export function NoticeForm({ studentId, name }: { studentId: string; name: string }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const r = useRouter();
+  return (
+    <form onSubmit={async (e) => {
+      e.preventDefault(); setBusy(true); setErr(null); setMsg('');
+      try { await api('/api/v1/notices', 'POST', { student_id: studentId, title, body }); setMsg(`Sent. It pops up on ${name}'s screen now.`); setTitle(''); setBody(''); r.refresh(); }
+      catch (x) { setErr(x as ApiErr); } finally { setBusy(false); }
+    }}>
+      <ErrorBox err={err} />
+      <div className="chips" role="group" aria-label="Quick templates">
+        {TEMPLATES.map(([t, b]) => <button key={t} type="button" className={`chip${title === t ? ' on' : ''}`} onClick={() => { setTitle(t); setBody(b); }}>{t}</button>)}
+      </div>
+      <label htmlFor="ntitle">Title</label><input id="ntitle" value={title} onChange={(e) => setTitle(e.target.value)} required minLength={3} maxLength={120} />
+      <label htmlFor="nbody">Message</label><textarea id="nbody" rows={3} value={body} onChange={(e) => setBody(e.target.value)} maxLength={1000} />
+      <p><button disabled={busy}>{busy ? 'Sending…' : 'Send notice'}</button></p>
+      {msg && <p role="status" className="ok">{msg}</p>}
+    </form>
+  );
+}
+
+const DOC_LABEL: Record<string, string> = { missing: 'Missing', submitted: 'Submitted — verify', accepted: 'Verified', rejected: 'Rejected' };
+
+/** Change a document's verification state (student is notified), or remind the student about a missing/rejected one. */
+export function DocState({ studentId, reqId, state, compact }: { studentId: string; reqId: string; state: string; compact?: boolean }) {
+  const [s, setS] = useState(state);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const r = useRouter();
+  const save = async (v: string) => {
+    setErr(null); setMsg('');
+    try { await api('/api/v1/admin/documents', 'PATCH', { student_id: studentId, requirement_id: reqId, state: v }); setS(v); setMsg(v === 'submitted' ? 'Saved' : 'Saved · student notified'); r.refresh(); }
+    catch (x) { setErr(x as ApiErr); }
+  };
+  const remind = s === 'rejected' ? 'rejected' : 'missing';
+  return (
+    <div className="doc-state">
+      {!compact && (
+        <select aria-label="Verification state" value={DOC_LABEL[s] ? s : 'missing'} onChange={(e) => save(e.target.value)}>
+          {Object.entries(DOC_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      )}
+      {s === 'submitted' && compact
+        ? <><button type="button" className="small" onClick={() => save('accepted')}>Verify</button><button type="button" className="small secondary" onClick={() => save('rejected')}>Reject</button></>
+        : s !== 'accepted' && s !== 'submitted' && <button type="button" className="small secondary" onClick={() => save(remind)}>Remind</button>}
+      {msg && <span role="status" className="ok small-note">{msg}</span>}
+      {err && <span role="alert" className="bad small-note">{err.message}</span>}
+    </div>
+  );
+}
+
+export function CaseStatusForm({ caseId, status, options }: { caseId: string; status: string; options: readonly string[] }) {
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const [msg, setMsg] = useState('');
+  const r = useRouter();
+  return (
+    <form className="row" onSubmit={async (e) => {
+      e.preventDefault(); setErr(null); setMsg('');
+      const f = new FormData(e.currentTarget);
+      try { await api(`/api/v1/admin/cases/${caseId}`, 'PATCH', { status: f.get('status'), note: f.get('note') }); setMsg('Updated · student notified'); r.refresh(); }
+      catch (x) { setErr(x as ApiErr); }
+    }}>
+      <ErrorBox err={err} />
+      <div><label htmlFor={`cs-${caseId}`}>Scholarship status</label>
+        <select id={`cs-${caseId}`} name="status" defaultValue={options.includes(status) ? status : options[0]}>{options.map((o) => <option key={o} value={o}>{o.replaceAll('_', ' ')}</option>)}</select></div>
+      <div><label htmlFor={`cn-${caseId}`}>Note to student (optional)</label><input id={`cn-${caseId}`} name="note" maxLength={1000} /></div>
+      <button style={{ flex: '0 0 auto' }}>Update</button>
+      {msg && <p role="status" className="ok" style={{ flexBasis: '100%' }}>{msg}</p>}
+    </form>
+  );
+}
+
+// ---- Placement cell
+
+export function JobPostForm({ branches }: { branches: string[] }) {
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const r = useRouter();
+  const sel = (name: string, label: string, opts: [string, string][]) => (
+    <div><label htmlFor={`j-${name}`}>{label}</label><select id={`j-${name}`} name={name}>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+  );
+  return (
+    <details className="card post-drive">
+      <summary><span className="plus" aria-hidden="true">+</span> Post a new drive</summary>
+      <form onSubmit={async (e) => {
+        e.preventDefault(); setBusy(true); setErr(null); setMsg('');
+        const form = e.currentTarget;
+        const fd = new FormData(form);
+        const picked = fd.getAll('branches').map(String);
+        fd.delete('branches');
+        const f = Object.fromEntries(fd) as Record<string, string>;
+        try {
+          await api('/api/v1/placement/jobs', 'POST', { ...f, salary_text: f.salary_text || undefined, notify_students: f.notify_students === 'on', branches: picked.length ? picked : undefined });
+          form.reset(); setMsg('Drive posted.'); r.refresh();
+        } catch (x) { setErr(x as ApiErr); } finally { setBusy(false); }
+      }}>
+        <ErrorBox err={err} />
+        <div className="row">
+          <div><label htmlFor="j-company">Company</label><input id="j-company" name="company" required minLength={2} maxLength={120} /></div>
+          <div><label htmlFor="j-role">Role</label><input id="j-role" name="role" required minLength={2} maxLength={120} /></div>
+        </div>
+        <div className="row">
+          {sel('category', 'Category', [['it', 'IT'], ['non_it', 'Non-IT']])}
+          {sel('campus_type', 'Drive type', [['campus', 'On campus'], ['off_campus', 'Off campus']])}
+          {sel('level', 'Level', [['fresher', 'Fresher'], ['internship', 'Internship']])}
+        </div>
+        <div className="row">
+          <div><label htmlFor="j-location">Location</label><input id="j-location" name="location" required minLength={2} maxLength={120} /></div>
+          <div><label htmlFor="j-salary">Salary (optional)</label><input id="j-salary" name="salary_text" maxLength={120} placeholder="e.g. INR 6 LPA" /></div>
+          <div><label htmlFor="j-deadline">Apply by</label><input id="j-deadline" name="deadline" type="date" required /></div>
+        </div>
+        <label htmlFor="j-eligibility">Eligibility (shown to students)</label><input id="j-eligibility" name="eligibility" required minLength={2} maxLength={500} placeholder="e.g. B.Tech 2026, CGPA 7+, no active backlogs" />
+        <fieldset className="rules">
+          <legend>Eligibility rules (enforced: ineligible students cannot apply and are not counted or reminded)</legend>
+          <div className="row">
+            <div><label htmlFor="j-cgpa">Minimum CGPA</label><input id="j-cgpa" name="min_cgpa" type="number" min={0} max={10} step={0.1} placeholder="none" /></div>
+            <div><label htmlFor="j-bl">Max active backlogs</label><input id="j-bl" name="max_backlogs" type="number" min={0} max={20} placeholder="any" /></div>
+          </div>
+          <div className="chips" role="group" aria-label="Branches (none ticked = all)">{branches.map((b) => <label key={b} className="chip check-chip"><input type="checkbox" name="branches" value={b} /> {b}</label>)}</div>
+        </fieldset>
+        <label htmlFor="j-apply">Official application link</label><input id="j-apply" name="apply_url" type="url" required pattern="https://.+" placeholder="https://" />
+        <label htmlFor="j-jd">Job description</label><textarea id="j-jd" name="jd" rows={5} required minLength={20} maxLength={8000} />
+        <label className="check"><input type="checkbox" name="notify_students" defaultChecked /> Notify all students now</label>
+        <p><button disabled={busy}>{busy ? 'Posting…' : 'Post drive'}</button></p>
+        {msg && <p role="status" className="ok">{msg}</p>}
+      </form>
+    </details>
+  );
+}
+
+export function JobStatusToggle({ id, status }: { id: string; status: string }) {
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const r = useRouter();
+  const next = status === 'published' ? 'withdrawn' : 'published';
+  return (
+    <>
+      <ErrorBox err={err} />
+      <button type="button" className="secondary" onClick={async () => {
+        try { await api(`/api/v1/placement/jobs/${id}`, 'PATCH', { status: next }); r.refresh(); } catch (x) { setErr(x as ApiErr); }
+      }}>{next === 'withdrawn' ? 'Close this drive' : 'Re-open this drive'}</button>
+    </>
+  );
+}
+
+export function NudgeButton({ id, group, count, label }: { id: string; group: 'opened' | 'none'; count: number; label: string }) {
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const r = useRouter();
+  return (
+    <div className="nudge">
+      <button type="button" disabled={!count} onClick={async () => {
+        setErr(null);
+        try { const { sent } = await api(`/api/v1/placement/jobs/${id}/nudge`, 'POST', { group }); setMsg(sent ? `Reminded ${sent} student${sent === 1 ? '' : 's'}` : 'Already reminded today'); r.refresh(); }
+        catch (x) { setErr(x as ApiErr); }
+      }}>{label} ({count})</button>
+      {msg && <span role="status" className="ok small-note">{msg}</span>}
+      {err && <span role="alert" className="bad small-note">{err.message}</span>}
+    </div>
+  );
+}
+
+// ---- Shared
+
+export function PrintButton() {
+  return <button type="button" className="secondary no-print" onClick={() => window.print()}>Print / save as PDF</button>;
+}
+
+/** Small "do it, show result, refresh" helper for one-shot forms. */
+function useAction() {
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const r = useRouter();
+  const run = async (fn: () => Promise<string | void>) => {
+    setBusy(true); setErr(null); setMsg('');
+    try { const m = await fn(); if (m) setMsg(m); r.refresh(); return true; } catch (x) { setErr(x as ApiErr); return false; } finally { setBusy(false); }
+  };
+  return { err, msg, busy, run };
+}
+const Msg = ({ msg }: { msg: string }) => (msg ? <p role="status" className="ok">{msg}</p> : null);
+
+export function PasswordForm({ student }: { student: boolean }) {
+  const { err, msg, busy, run } = useAction();
+  const [mismatch, setMismatch] = useState(false);
+  return (
+    <form className="card tone-rose" onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = new FormData(form);
+      setMismatch(f.get('next') !== f.get('again'));
+      if (f.get('next') !== f.get('again')) return;
+      run(async () => { await api('/api/v1/me/password', 'POST', { current: f.get('current'), next: f.get('next') }); form.reset(); return 'Password changed. Use it next time you sign in.'; });
+    }}>
+      <h2>Change password</h2>
+      <ErrorBox err={err} />
+      <label htmlFor="pw-cur">{student ? 'Current password (your roll number if never changed)' : 'Current password'}</label>
+      <input id="pw-cur" name="current" type="password" autoComplete="current-password" required />
+      <label htmlFor="pw-new">New password</label><input id="pw-new" name="next" type="password" autoComplete="new-password" minLength={8} required />
+      <label htmlFor="pw-again">Repeat new password</label><input id="pw-again" name="again" type="password" autoComplete="new-password" minLength={8} required />
+      {mismatch && <p role="alert" className="bad small-note">The new passwords do not match.</p>}
+      <p><button disabled={busy}>Change password</button></p>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+// ---- Student
+
+const REQUEST_LABEL: Record<string, string> = { bonafide: 'Bonafide certificate', study: 'Study certificate', conduct: 'Conduct certificate', transfer: 'Transfer certificate (TC)', other_certificate: 'Other certificate', leave: 'Leave' };
+
+export function RequestForm() {
+  const [kind, setKind] = useState('bonafide');
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = new FormData(form);
+      run(async () => {
+        await api('/api/v1/requests', 'POST', { kind, reason: f.get('reason'), ...(kind === 'leave' ? { from_date: f.get('from'), to_date: f.get('to') } : {}) });
+        form.reset(); return 'Request sent to the administration office. You will get a notification when it is decided.';
+      });
+    }}>
+      <ErrorBox err={err} />
+      <div className="chips" role="radiogroup" aria-label="What do you need?">
+        {Object.entries(REQUEST_LABEL).map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={kind === k} className={`chip${kind === k ? ' on' : ''}`} onClick={() => setKind(k)}>{l}</button>)}
+      </div>
+      {kind === 'leave' && <div className="row">
+        <div><label htmlFor="rq-from">From</label><input id="rq-from" name="from" type="date" required /></div>
+        <div><label htmlFor="rq-to">To</label><input id="rq-to" name="to" type="date" required /></div>
+      </div>}
+      <label htmlFor="rq-reason">{kind === 'leave' ? 'Reason for leave' : 'Purpose (e.g. bank loan, passport, internship)'}</label>
+      <textarea id="rq-reason" name="reason" rows={3} minLength={5} maxLength={1000} required />
+      <p><button disabled={busy}>{busy ? 'Sending…' : 'Send request'}</button></p>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+export function DocUpload({ reqId, label }: { reqId: string; label: string }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form className="upload" onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = new FormData(form);
+      f.set('requirement_id', reqId);
+      run(async () => { await upload('/api/v1/uploads', f); form.reset(); return 'Uploaded. The office will verify it.'; });
+    }}>
+      <label className="sr-only" htmlFor={`up-${reqId}`}>Upload {label}</label>
+      <input id={`up-${reqId}`} name="file" type="file" accept="application/pdf,image/jpeg,image/png" required />
+      <button className="small" disabled={busy}>{busy ? 'Uploading…' : 'Upload'}</button>
+      {msg && <span role="status" className="ok small-note">{msg}</span>}
+      {err && <span role="alert" className="bad small-note">{err.message}</span>}
+    </form>
+  );
+}
+
+// ---- Faculty
+
+type Pupil = { id: string; display_name: string; roll_no: string | null };
+
+export function AttendanceSheet({ assignmentId, date, period, roster, present, marked }: { assignmentId: string; date: string; period: number; roster: Pupil[]; present: string[]; marked: boolean }) {
+  const [on, setOn] = useState<Set<string>>(() => new Set(marked ? present : roster.map((s) => s.id)));
+  const { err, msg, busy, run } = useAction();
+  const flip = (id: string) => setOn((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  return (
+    <div>
+      <ErrorBox err={err} />
+      <div className="row actions-row">
+        <span className="pill-count"><strong>{on.size}</strong> present · <strong>{roster.length - on.size}</strong> absent</span>
+        <button type="button" className="small secondary" onClick={() => setOn(new Set(roster.map((s) => s.id)))}>All present</button>
+        <button type="button" className="small secondary" onClick={() => setOn(new Set())}>All absent</button>
+      </div>
+      <ul className="roster">{roster.map((s) => (
+        <li key={s.id}>
+          <label className={`mark ${on.has(s.id) ? 'present' : 'absent'}`}>
+            <input type="checkbox" checked={on.has(s.id)} onChange={() => flip(s.id)} />
+            <span className="roll">{s.roll_no ?? '—'}</span><span>{s.display_name}</span>
+            <span className="state">{on.has(s.id) ? 'Present' : 'Absent'}</span>
+          </label>
+        </li>
+      ))}</ul>
+      <p><button disabled={busy || !roster.length} onClick={() => run(async () => {
+        const r = await api('/api/v1/faculty/attendance', 'POST', { assignment_id: assignmentId, date, period, present: [...on] });
+        return `Saved: ${r.present} of ${r.total} present.`;
+      })}>{marked ? 'Update attendance' : 'Save attendance'}</button></p>
+      <Msg msg={msg} />
+    </div>
+  );
+}
+
+export function NewAssessment({ assignmentId }: { assignmentId: string }) {
+  const { err, busy, run } = useAction();
+  return (
+    <form className="row" onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = new FormData(form);
+      run(async () => { await api('/api/v1/faculty/assessments', 'POST', { assignment_id: assignmentId, name: f.get('name'), max_marks: Number(f.get('max')) }); form.reset(); });
+    }}>
+      <ErrorBox err={err} />
+      <div><label htmlFor="as-name">New assessment</label><input id="as-name" name="name" placeholder="e.g. Mid-term 2" required minLength={2} maxLength={60} /></div>
+      <div style={{ flex: '0 0 130px' }}><label htmlFor="as-max">Max marks</label><input id="as-max" name="max" type="number" min={1} max={1000} defaultValue={30} required /></div>
+      <button style={{ flex: '0 0 auto' }} disabled={busy}>Add</button>
+    </form>
+  );
+}
+
+export function MarksGrid({ assessment, roster }: { assessment: { id: string; name: string; max_marks: number; published: boolean; marks: Record<string, number | null> }; roster: Pupil[] }) {
+  const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(roster.map((s) => [s.id, assessment.marks[s.id] == null ? '' : String(assessment.marks[s.id])])));
+  const { err, msg, busy, run } = useAction();
+  const save = (published?: boolean) => run(async () => {
+    const marks = roster.map((s) => ({ student_id: s.id, marks: vals[s.id] === '' ? null : Number(vals[s.id]) }));
+    await api(`/api/v1/faculty/assessments/${assessment.id}`, 'PATCH', { marks, ...(published === undefined ? {} : { published }) });
+    return published ? 'Saved and published. Students were notified.' : published === false ? 'Hidden from students.' : 'Marks saved.';
+  });
+  const filled = roster.filter((s) => vals[s.id] !== '').length;
+  return (
+    <section className="card marks-card">
+      <div className="card-head"><h3>{assessment.name} <span className="muted small">out of {assessment.max_marks}</span></h3>
+        <span className={`badge ${assessment.published ? 'ok' : 'neutral'}`}>{assessment.published ? 'Published' : 'Draft'}</span></div>
+      <ErrorBox err={err} />
+      <div className="scroll"><table>
+        <thead><tr><th>Roll</th><th>Student</th><th className="num">Marks (blank = absent)</th></tr></thead>
+        <tbody>{roster.map((s) => (
+          <tr key={s.id}><td>{s.roll_no}</td><td>{s.display_name}</td>
+            <td className="num"><input aria-label={`Marks for ${s.display_name}`} className="mark-input" type="number" min={0} max={assessment.max_marks} step={0.5}
+              value={vals[s.id]} onChange={(e) => setVals({ ...vals, [s.id]: e.target.value })} /></td></tr>
+        ))}</tbody>
+      </table></div>
+      <div className="row actions-row">
+        <span className="muted small">{filled} of {roster.length} entered</span>
+        <button type="button" className="secondary" disabled={busy} onClick={() => save()}>Save</button>
+        {assessment.published
+          ? <button type="button" className="secondary" disabled={busy} onClick={() => save(false)}>Unpublish</button>
+          : <button type="button" disabled={busy} onClick={() => save(true)}>Save &amp; publish to students</button>}
+      </div>
+      <Msg msg={msg} />
+    </section>
+  );
+}
+
+export function NoteUpload({ assignmentId }: { assignmentId: string }) {
+  const [kind, setKind] = useState('material');
+  const [mode, setMode] = useState<'text' | 'file'>('text');
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = new FormData(form);
+      f.set('assignment_id', assignmentId); f.set('kind', kind);
+      if (mode === 'text') f.delete('file'); else f.delete('text');
+      run(async () => { await upload('/api/v1/faculty/notes', f); form.reset(); return 'Published. Students in this class were notified.'; });
+    }}>
+      <ErrorBox err={err} />
+      <div className="chips">
+        <button type="button" className={`chip${kind === 'material' ? ' on' : ''}`} onClick={() => setKind('material')}>Notes</button>
+        <button type="button" className={`chip${kind === 'paper' ? ' on' : ''}`} onClick={() => setKind('paper')}>Question paper</button>
+        <span className="chip-sep" />
+        <button type="button" className={`chip${mode === 'text' ? ' on' : ''}`} onClick={() => setMode('text')}>Paste text</button>
+        <button type="button" className={`chip${mode === 'file' ? ' on' : ''}`} onClick={() => setMode('file')}>Upload file</button>
+      </div>
+      <div className="row">
+        <div><label htmlFor="n-title">Title</label><input id="n-title" name="title" required minLength={3} maxLength={150} /></div>
+        {kind === 'paper' && <div style={{ flex: '0 0 140px' }}><label htmlFor="n-year">Exam year</label><input id="n-year" name="exam_year" type="number" min={2000} max={2100} /></div>}
+      </div>
+      {mode === 'text'
+        ? <><label htmlFor="n-text">Content</label><textarea id="n-text" name="text" rows={8} required placeholder="Paste notes. Separate sections with a blank line; the first line of each section becomes its heading." /></>
+        : <><label htmlFor="n-file">File (.txt or PDF, up to 5 MB)</label><input id="n-file" name="file" type="file" accept=".txt,text/plain,application/pdf" required />
+          <p className="muted small">Text notes can be searched and cited by the AI tutor. PDFs can be downloaded only.</p></>}
+      <p><button disabled={busy}>{busy ? 'Publishing…' : 'Publish to class'}</button></p>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+// ---- Administration office
+
+export function AddStudent({ branches }: { branches: string[] }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = Object.fromEntries(new FormData(form));
+      run(async () => { await api('/api/v1/admin/students', 'POST', { rows: [f] }); form.reset(); return `Added. ${f.display_name} signs in with ${f.email} and roll number ${String(f.roll_no).toUpperCase()}.`; });
+    }}>
+      <ErrorBox err={err} />
+      <div className="row">
+        <div><label htmlFor="s-name">Full name</label><input id="s-name" name="display_name" required maxLength={80} /></div>
+        <div><label htmlFor="s-roll">Roll number</label><input id="s-roll" name="roll_no" required pattern="[A-Za-z0-9-]{3,20}" /></div>
+      </div>
+      <div className="row">
+        <div><label htmlFor="s-email">College email</label><input id="s-email" name="email" type="email" required /></div>
+        <div><label htmlFor="s-phone">Mobile (optional)</label><input id="s-phone" name="phone" type="tel" /></div>
+      </div>
+      <div className="row">
+        <div><label htmlFor="s-branch">Branch</label><select id="s-branch" name="branch">{branches.map((b) => <option key={b}>{b}</option>)}</select></div>
+        <div><label htmlFor="s-sem">Semester</label><select id="s-sem" name="semester">{[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n}>{n}</option>)}</select></div>
+        <div><label htmlFor="s-sec">Section</label><input id="s-sec" name="section" defaultValue="A" maxLength={1} pattern="[A-Za-z]" required /></div>
+      </div>
+      <p><button disabled={busy}>Add student</button></p>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+/** Minimal CSV reader: commas, quoted cells, doubled quotes. Header names map to fields. */
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let cell = '', row: string[] = [], q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (ch === '"') q = false; else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+    else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  const clean = rows.filter((r) => r.some((c) => c.trim()));
+  const head = (clean.shift() ?? []).map((h) => h.replace(/^﻿/, '').trim().toLowerCase().replace(/[^a-z]+/g, '_').replace(/^_|_$/g, ''));
+  const alias: Record<string, string> = { name: 'display_name', full_name: 'display_name', student_name: 'display_name', roll: 'roll_no', roll_number: 'roll_no', mobile: 'phone', email_id: 'email', college_email: 'email', sem: 'semester' };
+  return clean.map((r) => Object.fromEntries(head.map((h, i) => [alias[h] ?? h, (r[i] ?? '').trim()]).filter(([k, v]) => ['display_name', 'email', 'roll_no', 'phone', 'branch', 'semester', 'section'].includes(k) && v !== '')));
+}
+
+export function BulkImport() {
+  const [rows, setRows] = useState<Record<string, string>[]>([]);
+  const { err, msg, busy, run } = useAction();
+  return (
+    <div>
+      <ErrorBox err={err} />
+      <p className="muted small">Columns: <code>name, email, roll_no, phone, branch, semester, section</code>. Save from Excel as CSV. Up to 500 rows; nothing is saved if any row has a problem.</p>
+      <div className="row">
+        <div><label htmlFor="csv">Spreadsheet (.csv)</label><input id="csv" type="file" accept=".csv,text/csv" onChange={async (e) => { const f = e.target.files?.[0]; setRows(f ? parseCsv(await f.text()) : []); }} /></div>
+        <button style={{ flex: '0 0 auto' }} disabled={busy || !rows.length} onClick={() => run(async () => {
+          const r = await api('/api/v1/admin/students', 'POST', { rows }); setRows([]); return `Added ${r.added} students. Each signs in with their college email and roll number.`;
+        })}>{rows.length ? `Import ${rows.length} students` : 'Import'}</button>
+      </div>
+      {rows.length > 0 && <p className="muted small">Preview: {rows.slice(0, 3).map((r) => `${r.display_name ?? '?'} (${r.roll_no ?? '?'})`).join(', ')}{rows.length > 3 ? ` and ${rows.length - 3} more` : ''}</p>}
+      <Msg msg={msg} />
+    </div>
+  );
+}
+
+export function StudentEdit({ id, semester, section, cgpa, phone }: { id: string; semester: number; section: string; cgpa: number | null; phone: string }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form className="row" onSubmit={(e) => {
+      e.preventDefault();
+      const f = new FormData(e.currentTarget);
+      run(async () => {
+        await api(`/api/v1/admin/students/${id}`, 'PATCH', { current_semester: Number(f.get('sem')), section: f.get('sec'), cgpa: f.get('cgpa') === '' ? null : Number(f.get('cgpa')), phone: f.get('phone') });
+        return 'Saved';
+      });
+    }}>
+      <ErrorBox err={err} />
+      <div><label htmlFor="e-sem">Semester</label><select id="e-sem" name="sem" defaultValue={semester}>{[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n}>{n}</option>)}</select></div>
+      <div><label htmlFor="e-sec">Section</label><input id="e-sec" name="sec" defaultValue={section} maxLength={1} pattern="[A-Za-z]" required /></div>
+      <div><label htmlFor="e-cgpa">CGPA</label><input id="e-cgpa" name="cgpa" type="number" min={0} max={10} step={0.01} defaultValue={cgpa ?? ''} /></div>
+      <div><label htmlFor="e-phone">Mobile</label><input id="e-phone" name="phone" type="tel" defaultValue={phone} /></div>
+      <button style={{ flex: '0 0 auto' }} disabled={busy}>Save</button>
+      {msg && <span role="status" className="ok small-note">{msg}</span>}
+    </form>
+  );
+}
+
+const thisYear = () => { const d = new Date(), y = d.getMonth() >= 5 ? d.getFullYear() : d.getFullYear() - 1; return `${y}-${String((y + 1) % 100).padStart(2, '0')}`; };
+
+export function FeeForm({ targets }: { targets: [string, string][] }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = Object.fromEntries(new FormData(form));
+      run(async () => { const r = await api('/api/v1/admin/fees', 'POST', f); return `Fee added for ${r.count} student${r.count === 1 ? '' : 's'}. They were notified.`; });
+    }}>
+      <ErrorBox err={err} />
+      {targets.length > 1
+        ? <><label htmlFor="f-target">For</label><select id="f-target" name="target">{targets.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></>
+        : <input type="hidden" name="target" value={targets[0]?.[0]} />}
+      <div className="row">
+        <div><label htmlFor="f-year">Academic year</label><input id="f-year" name="academic_year" defaultValue={thisYear()} pattern="\d{4}-\d{2}" required /></div>
+        <div><label htmlFor="f-cat">Category</label><select id="f-cat" name="category">{['tuition', 'transport', 'hostel', 'exam', 'other'].map((c) => <option key={c}>{c}</option>)}</select></div>
+      </div>
+      <div className="row">
+        <div><label htmlFor="f-amt">Amount (INR)</label><input id="f-amt" name="amount" inputMode="decimal" placeholder="e.g. 120000" required /></div>
+        <div><label htmlFor="f-due">Due date</label><input id="f-due" name="due" type="date" required /></div>
+      </div>
+      <p><button disabled={busy}>Add fee</button></p>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+export function FeeEdit({ id, amount, due }: { id: string; amount: number; due: string }) {
+  const [open, setOpen] = useState(false);
+  const { err, busy, run } = useAction();
+  if (!open) return <button type="button" className="text-btn" onClick={() => setOpen(true)}>Edit</button>;
+  return (
+    <form className="inline-edit" onSubmit={(e) => {
+      e.preventDefault();
+      const f = new FormData(e.currentTarget);
+      run(async () => { await api(`/api/v1/admin/fees/${id}`, 'PATCH', { amount: f.get('amount'), due: f.get('due') }); setOpen(false); });
+    }}>
+      <input aria-label="Amount (INR)" name="amount" defaultValue={String(amount / 100)} inputMode="decimal" required />
+      <input aria-label="Due date" name="due" type="date" defaultValue={due} required />
+      <button className="small" disabled={busy}>Save</button>
+      <button type="button" className="small secondary" onClick={() => setOpen(false)}>Cancel</button>
+      {err && <span role="alert" className="bad small-note">{err.message}</span>}
+    </form>
+  );
+}
+
+export function PaymentForm({ studentId, owed }: { studentId: string; owed: number }) {
+  const [mode, setMode] = useState('upi');
+  const { err, busy, run } = useAction();
+  const [done, setDone] = useState<{ id: string; receipt: string } | null>(null);
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = new FormData(form);
+      run(async () => { const r = await api('/api/v1/admin/payments', 'POST', { student_id: studentId, amount: f.get('amount'), mode, reference: f.get('reference') ?? '' }); setDone({ id: r.payment_id, receipt: r.receipt }); form.reset(); });
+    }}>
+      <ErrorBox err={err} />
+      <div className="chips">{[['upi', 'UPI'], ['cash', 'Cash'], ['card', 'Card'], ['bank_transfer', 'Bank transfer'], ['cheque', 'Cheque'], ['dd', 'DD']].map(([v, l]) =>
+        <button key={v} type="button" className={`chip${mode === v ? ' on' : ''}`} onClick={() => setMode(v)}>{l}</button>)}</div>
+      <div className="row">
+        <div><label htmlFor="p-amt">Amount (INR)</label><input id="p-amt" name="amount" inputMode="decimal" placeholder={`up to ${(owed / 100).toLocaleString('en-IN')}`} required /></div>
+        {mode !== 'cash' && <div><label htmlFor="p-ref">{mode === 'cheque' || mode === 'dd' ? 'Cheque / DD number' : 'Transaction ID'}</label><input id="p-ref" name="reference" maxLength={60} required /></div>}
+      </div>
+      <p><button disabled={busy || owed <= 0}>{owed <= 0 ? 'Nothing outstanding' : 'Record payment'}</button></p>
+      {done && <p role="status" className="ok">Recorded. Receipt <strong>{done.receipt}</strong> · <Link href={`/receipts/${done.id}`}>open receipt</Link></p>}
+    </form>
+  );
+}
+
+export function CreditForm({ caseId, room }: { caseId: string; room: number }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form className="row" onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = new FormData(form);
+      run(async () => { const r = await api(`/api/v1/admin/cases/${caseId}/credit`, 'POST', { amount: f.get('amount'), reference: f.get('reference') }); form.reset(); return `Credited (${r.reference}). Status: ${r.status}.`; });
+    }}>
+      <ErrorBox err={err} />
+      <div><label htmlFor={`cr-a-${caseId}`}>Amount received (INR)</label><input id={`cr-a-${caseId}`} name="amount" inputMode="decimal" placeholder={`up to ${(room / 100).toLocaleString('en-IN')}`} required /></div>
+      <div><label htmlFor={`cr-r-${caseId}`}>Sanction / bank reference</label><input id={`cr-r-${caseId}`} name="reference" required minLength={2} maxLength={60} /></div>
+      <button style={{ flex: '0 0 auto' }} disabled={busy}>Record credit</button>
+      {msg && <p role="status" className="ok" style={{ flexBasis: '100%' }}>{msg}</p>}
+    </form>
+  );
+}
+
+export function BroadcastForm({ targets }: { targets: [string, string][] }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, f = Object.fromEntries(new FormData(form));
+      run(async () => { const r = await api('/api/v1/admin/broadcast', 'POST', f); form.reset(); return `Sent to ${r.sent} student${r.sent === 1 ? '' : 's'}. It pops up on their screens now.`; });
+    }}>
+      <ErrorBox err={err} />
+      <label htmlFor="b-target">Send to</label><select id="b-target" name="target">{targets.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+      <label htmlFor="b-title">Title</label><input id="b-title" name="title" required minLength={3} maxLength={120} placeholder="e.g. College closed on Friday" />
+      <label htmlFor="b-body">Message</label><textarea id="b-body" name="body" rows={4} maxLength={1000} />
+      <p><button disabled={busy}>{busy ? 'Sending…' : 'Send notice'}</button></p>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+export function RequestDecision({ id, status, kind }: { id: string; status: string; kind: string }) {
+  const [note, setNote] = useState('');
+  const { err, busy, run } = useAction();
+  const act = (s: string) => run(async () => { await api(`/api/v1/admin/requests/${id}`, 'PATCH', { status: s, note }); });
+  if (status === 'rejected' || status === 'ready' || (status === 'approved' && kind === 'leave')) return null;
+  return (
+    <div className="decide">
+      {status === 'pending' && <input aria-label="Note to student (optional)" placeholder="Note to student (optional)" value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />}
+      {status === 'pending' && <><button className="small" disabled={busy} onClick={() => act('approved')}>Approve</button><button className="small secondary" disabled={busy} onClick={() => act('rejected')}>Reject</button></>}
+      {status === 'approved' && <button className="small" disabled={busy} onClick={() => act('ready')}>Mark ready for collection</button>}
+      {err && <span role="alert" className="bad small-note">{err.message}</span>}
+    </div>
+  );
+}
+
+export function AssignForm({ faculty, subjects }: { faculty: { id: string; display_name: string }[]; subjects: { id: string; branch: string; semester: number; code: string; name: string }[] }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form className="row" onSubmit={(e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(e.currentTarget));
+      run(async () => { await api('/api/v1/admin/assignments', 'POST', f); return 'Teacher assigned.'; });
+    }}>
+      <ErrorBox err={err} />
+      <div><label htmlFor="a-sub">Subject</label><select id="a-sub" name="curriculum_subject_id">{subjects.map((s) => <option key={s.id} value={s.id}>{s.branch} sem {s.semester} · {s.code} {s.name}</option>)}</select></div>
+      <div style={{ flex: '0 0 90px' }}><label htmlFor="a-sec">Section</label><input id="a-sec" name="section" defaultValue="A" maxLength={1} pattern="[A-Za-z]" required /></div>
+      <div><label htmlFor="a-fac">Teacher</label><select id="a-fac" name="faculty_user_id">{faculty.map((f) => <option key={f.id} value={f.id}>{f.display_name}</option>)}</select></div>
+      <button style={{ flex: '0 0 auto' }} disabled={busy || !faculty.length}>Assign</button>
+      {msg && <p role="status" className="ok" style={{ flexBasis: '100%' }}>{msg}</p>}
+    </form>
+  );
+}
+
+export function SlotForm({ classes }: { classes: { id: string; label: string }[] }) {
+  const { err, msg, busy, run } = useAction();
+  return (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      const f = new FormData(e.currentTarget);
+      run(async () => {
+        await api('/api/v1/admin/timetable', 'POST', { assignment_id: f.get('cls'), day: Number(f.get('day')), period: Number(f.get('period')), starts_at: f.get('starts'), ends_at: f.get('ends'), room: f.get('room') });
+        return 'Added to the timetable.';
+      });
+    }}>
+      <ErrorBox err={err} />
+      <label htmlFor="t-cls">Class</label><select id="t-cls" name="cls">{classes.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}</select>
+      <div className="row">
+        <div><label htmlFor="t-day">Day</label><select id="t-day" name="day">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => <option key={d} value={i + 1}>{d}</option>)}</select></div>
+        <div><label htmlFor="t-per">Period</label><select id="t-per" name="period">{[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n}>{n}</option>)}</select></div>
+        <div><label htmlFor="t-s">Starts</label><input id="t-s" name="starts" type="time" defaultValue="09:30" required /></div>
+        <div><label htmlFor="t-e">Ends</label><input id="t-e" name="ends" type="time" defaultValue="10:20" required /></div>
+        <div><label htmlFor="t-room">Room</label><input id="t-room" name="room" maxLength={40} /></div>
+      </div>
+      <p><button disabled={busy || !classes.length}>Add period</button></p>
+      <Msg msg={msg} />
+    </form>
+  );
+}
+
+export function RemoveSlot({ id }: { id: string }) {
+  const { busy, run } = useAction();
+  return <button type="button" className="text-btn" disabled={busy} aria-label="Remove this period" onClick={() => run(async () => { await api(`/api/v1/admin/timetable/${id}`, 'DELETE'); })}>Remove</button>;
+}
+
+// ---- Placement cell
+
+const STAGE_LABEL: Record<string, string> = { shortlisted: 'Shortlisted', interview: 'Interview', selected: 'Selected', offer_accepted: 'Offer accepted', rejected: 'Not selected' };
+
+export function StageSelect({ jobId, studentId, stage }: { jobId: string; studentId: string; stage: string | null }) {
+  const [s, setS] = useState(stage ?? '');
+  const { err, busy, run } = useAction();
+  return (
+    <span className="stage-select">
+      <select aria-label="Interview round" value={s} disabled={busy} onChange={(e) => {
+        const v = e.target.value; const prev = s; setS(v);
+        run(async () => { await api(`/api/v1/placement/jobs/${jobId}/stage`, 'PATCH', { student_id: studentId, stage: v || null }); }).then((ok) => { if (!ok) setS(prev); });
+      }}>
+        <option value="">Applied</option>{Object.entries(STAGE_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+      {err && <span role="alert" className="bad small-note">{err.message}</span>}
+    </span>
   );
 }

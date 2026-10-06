@@ -1,11 +1,12 @@
 // SYNTHETIC data only. All people, colleges, amounts and job listings are fictional.
 import { createHash } from 'node:crypto';
 import pg from 'pg';
+import { hashPassword } from '../src/server/auth';
 
 const u = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
 export const ID = {
   collegeA: u(1), collegeB: u(2),
-  asha: u(11), ravi: u(12), finA: u(13), placeA: u(14), editorA: u(15), revokedA: u(16), meera: u(21), finB: u(22),
+  asha: u(11), ravi: u(12), finA: u(13), placeA: u(14), revokedA: u(16), kavya: u(17), arjun: u(18), meera: u(21), finB: u(22),
   ashaStudent: u(111), raviStudent: u(112), meeraStudent: u(121),
   branchA: u(31), curA: u(32), branchB: u(33), curB: u(34),
   dbms: u(41), cprog: u(42), ds: u(43), dbmsB: u(44),
@@ -17,6 +18,18 @@ export const ID = {
   docDbms: u(201), docC: u(202), paperDbms24: u(203), paperDbms23: u(204), paperC24: u(205), docB: u(206),
   jobExpired: u(308), jobB: u(309),
 };
+/** Synthetic sign-in credentials. Students: college email + roll number. Staff: assigned passwords. */
+export const LOGIN = {
+  asha: { email: 'asha@college-a.example', password: '22A91A0501' },
+  ravi: { email: 'ravi@college-a.example', password: '22A91A0502' },
+  meera: { email: 'meera@college-b.example', password: '22B81A0501' },
+  admin: { email: 'admin@college-a.example', password: 'AdminA@2026' },
+  placement: { email: 'placement@college-a.example', password: 'PlaceA@2026' },
+  revoked: { email: 'revoked@college-a.example', password: 'Revoked@2026' },
+  adminB: { email: 'admin@college-b.example', password: 'AdminB@2026' },
+  kavya: { email: 'kavya@college-a.example', password: 'FacultyA@2026' },
+  arjun: { email: 'arjun@college-a.example', password: 'FacultyB@2026' },
+};
 const rupees = (r: number) => r * 100;
 const days = (d: number) => new Date(Date.now() + d * 86400000).toISOString();
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -26,22 +39,91 @@ export async function seed(url = process.env.DATABASE_URL) {
   await c.connect();
   const q = (sql: string, p: unknown[] = []) => c.query(sql, p);
   try {
-    if ((await q('select 1 from colleges limit 1')).rowCount) { console.log('seed: already present, skipping'); return; }
+    if ((await q('select 1 from colleges limit 1')).rowCount) console.log('seed: already present, skipping data');
+    else await insertData(q);
+    await insertAcademics(q);
+    await upsertLogins(q);
+  } finally {
+    await c.end();
+  }
+}
+
+/** Idempotent: also upgrades a database seeded before sign-in credentials existed. */
+async function upsertLogins(q: (sql: string, p?: unknown[]) => Promise<pg.QueryResult>) {
+  const who: [string, keyof typeof LOGIN][] = [[ID.asha, 'asha'], [ID.ravi, 'ravi'], [ID.meera, 'meera'], [ID.finA, 'admin'], [ID.placeA, 'placement'], [ID.revokedA, 'revoked'], [ID.finB, 'adminB'], [ID.kavya, 'kavya'], [ID.arjun, 'arjun']];
+  for (const [id, k] of who)
+    await q('update app_users set email = $2, password_hash = $3 where id = $1 and password_hash is null', [id, LOGIN[k].email, await hashPassword(LOGIN[k].password)]);
+  for (const [id, k] of [[ID.ashaStudent, 'asha'], [ID.raviStudent, 'ravi'], [ID.meeraStudent, 'meera']] as const)
+    await q('update students set roll_no = $2 where id = $1 and roll_no is null', [id, LOGIN[k].password]);
+}
+
+/** Teachers, classes, timetable, attendance and marks. Idempotent: skipped once any teaching assignment exists. */
+async function insertAcademics(q: (sql: string, p?: unknown[]) => Promise<pg.QueryResult>) {
+  if ((await q('select 1 from teaching_assignments limit 1')).rowCount) return;
+  await q('begin');
+  try {
+    for (const [id, h, n] of [[ID.kavya, 'kavya', 'Dr. Kavya (synthetic faculty)'], [ID.arjun, 'arjun', 'Prof. Arjun (synthetic faculty)']])
+      await q('insert into app_users (id, auth_subject, email, display_name) values ($1,$2,$3,$4) on conflict do nothing', [id, 'demo:' + h, `${h}@example.invalid`, n]);
+    for (const id of [ID.kavya, ID.arjun]) await q(`insert into memberships values ($1,$2,'faculty','active') on conflict do nothing`, [ID.collegeA, id]);
+    await q('update students set cgpa = $2 where id = $1', [ID.ashaStudent, 7.8]);
+    await q('update students set cgpa = $2 where id = $1', [ID.raviStudent, 6.4]);
+    await q('update students set cgpa = $2 where id = $1', [ID.meeraStudent, 8.1]);
+    const ta = async (fac: string, cs: string) => (await q(`insert into teaching_assignments (college_id, faculty_user_id, curriculum_subject_id, section) values ($1,$2,$3,'A') returning id`, [ID.collegeA, fac, cs])).rows[0].id as string;
+    const dbms = await ta(ID.kavya, ID.csDbms), ds = await ta(ID.arjun, ID.csDs);
+    const times = [['09:30', '10:20'], ['10:20', '11:10'], ['11:20', '12:10'], ['12:10', '13:00'], ['14:00', '14:50'], ['14:50', '15:40']];
+    const plan: [string, number, number][] = [[dbms, 1, 1], [ds, 1, 2], [ds, 2, 1], [dbms, 2, 3], [dbms, 3, 2], [ds, 3, 4], [ds, 4, 1], [dbms, 4, 5], [dbms, 5, 1], [ds, 5, 3], [ds, 6, 2]];
+    for (const [k, day, period] of plan)
+      await q('insert into timetable_slots (college_id, assignment_id, day, period, starts_at, ends_at, room) values ($1,$2,$3,$4,$5,$6,$7)',
+        [ID.collegeA, k, day, period, times[period - 1][0], times[period - 1][1], k === dbms ? 'CSE-201' : 'CSE-204']);
+    // Past three weeks of attendance on the planned days. Ravi misses more (below 75% in DS).
+    for (let back = 21; back >= 1; back--) {
+      const d = new Date(Date.now() - back * 86400000);
+      const dow = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getDay(); // 0 = Sunday, no classes
+      const date = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      for (const [k, , period] of plan.filter(([, day]) => day === dow)) {
+        const fac = k === dbms ? ID.kavya : ID.arjun;
+        const sid = (await q('insert into attendance_sessions (college_id, assignment_id, held_on, period, marked_by) values ($1,$2,$3,$4,$5) returning id', [ID.collegeA, k, date, period, fac])).rows[0].id;
+        await q('insert into attendance_marks values ($1,$2,$3,$4),($1,$2,$5,$6)', [ID.collegeA, sid, ID.ashaStudent, back % 9 !== 0, ID.raviStudent, k === dbms ? back % 4 !== 0 : back % 3 === 0]);
+      }
+    }
+    const exam = async (k: string, name: string, max: number, published: boolean, asha: number | null, ravi: number | null) => {
+      const id = (await q('insert into assessments (college_id, assignment_id, name, max_marks, published) values ($1,$2,$3,$4,$5) returning id', [ID.collegeA, k, name, max, published])).rows[0].id;
+      await q('insert into marks values ($1,$2,$3,$4),($1,$2,$5,$6)', [ID.collegeA, id, ID.ashaStudent, asha, ID.raviStudent, ravi]);
+    };
+    await exam(dbms, 'Mid-term 1', 30, true, 24, 17);
+    await exam(dbms, 'Assignment 1', 10, true, 9, 7);
+    await exam(ds, 'Mid-term 1', 30, true, 21, 12.5);
+    await exam(ds, 'Quiz 1', 10, false, 8, 6);
+    // A drive with eligibility rules: Ravi (CGPA 6.4) is not eligible.
+    await q(`insert into opportunities (id, college_id, company, role, category, campus_type, level, location, jd, eligibility, source_url, apply_url, deadline_at, verified_at, status, is_fictional, min_cgpa, max_backlogs, branches)
+      values ($1,$2,'Synthetic Data Corp','Associate Data Engineer','it','campus','fresher','Bengaluru (synthetic)',
+      'Build data pipelines with SQL and Python. Work with analysts on reporting.','CGPA 7.0+, CSE only, at most 1 active backlog',
+      'https://example.org/jobs/310','https://example.org/apply/310',$3,now(),'published',true,7.0,1,'{CSE}') on conflict do nothing`, [u(310), ID.collegeA, days(14)]);
+    await q('commit');
+    console.log('seed: academics inserted');
+  } catch (e) {
+    await q('rollback');
+    throw e;
+  }
+}
+
+async function insertData(q: (sql: string, p?: unknown[]) => Promise<pg.QueryResult>) {
+  try {
     await q('begin');
     const now = new Date().toISOString();
     await q(`insert into colleges values ($1,'Synthetic Institute of Technology A','Asia/Kolkata'),($2,'Synthetic College of Engineering B','Asia/Kolkata')`, [ID.collegeA, ID.collegeB]);
     const users: [string, string, string][] = [
       [ID.asha, 'asha', 'Asha (synthetic student)'], [ID.ravi, 'ravi', 'Ravi (synthetic student)'],
-      [ID.finA, 'fin.a', 'Finance staff A (synthetic)'], [ID.placeA, 'place.a', 'Placement staff A (synthetic)'],
-      [ID.editorA, 'editor.a', 'Content editor A (synthetic)'], [ID.revokedA, 'revoked.a', 'Revoked staff A (synthetic)'],
-      [ID.meera, 'meera', 'Meera (synthetic student, college B)'], [ID.finB, 'fin.b', 'Finance staff B (synthetic)'],
+      [ID.finA, 'fin.a', 'Administration office A (synthetic)'], [ID.placeA, 'place.a', 'Placement cell A (synthetic)'],
+      [ID.revokedA, 'revoked.a', 'Revoked staff A (synthetic)'],
+      [ID.meera, 'meera', 'Meera (synthetic student, college B)'], [ID.finB, 'fin.b', 'Administration office B (synthetic)'],
     ];
     for (const [id, h, n] of users) await q('insert into app_users values ($1,$2,$3,$4)', [id, 'demo:' + h, `${h}@example.invalid`, n]);
     const mem: [string, string, string, string][] = [
       [ID.collegeA, ID.asha, 'student', 'active'], [ID.collegeA, ID.ravi, 'student', 'active'],
-      [ID.collegeA, ID.finA, 'finance_staff', 'active'], [ID.collegeA, ID.placeA, 'placement_staff', 'active'],
-      [ID.collegeA, ID.editorA, 'content_editor', 'active'], [ID.collegeA, ID.revokedA, 'finance_staff', 'revoked'],
-      [ID.collegeB, ID.meera, 'student', 'active'], [ID.collegeB, ID.finB, 'finance_staff', 'active'],
+      [ID.collegeA, ID.finA, 'admin', 'active'], [ID.collegeA, ID.placeA, 'placement', 'active'],
+      [ID.collegeA, ID.revokedA, 'admin', 'revoked'],
+      [ID.collegeB, ID.meera, 'student', 'active'], [ID.collegeB, ID.finB, 'admin', 'active'],
     ];
     for (const m of mem) await q('insert into memberships values ($1,$2,$3,$4)', m);
 
@@ -151,8 +233,6 @@ export async function seed(url = process.env.DATABASE_URL) {
   } catch (e) {
     await q('rollback');
     throw e;
-  } finally {
-    await c.end();
   }
 }
 

@@ -1,8 +1,15 @@
+import { z } from 'zod';
 import { many, one, type Db } from './db';
 import type { Actor } from './auth';
 import { notFound } from './http';
 
 export const STALE_MS = 7 * 86400000;
+
+/** "1,20,000.50" style rupee input -> integer paise, without floating point. */
+export const rupeesToPaise = z.string().trim().transform((s) => s.replaceAll(',', ''))
+  .pipe(z.string().regex(/^\d{1,9}(\.\d{1,2})?$/, 'Enter an amount in rupees'))
+  .transform((s) => { const [r, p = ''] = s.split('.'); return Number(r) * 100 + Number(p.padEnd(2, '0')); })
+  .refine((n) => n > 0, 'Amount must be more than zero');
 type Assessment = { id: string; academic_year: string; category: string; amount_paise: number; due_at: Date; source_ref: string; observed_at: Date };
 type Alloc = { assessment_id: string; kind: 'student_payment' | 'scholarship_credit' | 'refund'; amount_paise: number };
 type Case = { id: string; academic_year: string; status: string; expected_paise: number; credited_paise: number };

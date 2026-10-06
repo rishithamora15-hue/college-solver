@@ -1,9 +1,9 @@
 // In-app notifications only (no external email on Tuesday). Unique (college, user, event_key, channel) = dedup.
 import { flagEnabled, many, one, type Db } from './db';
 
-export async function notify(c: Db, collegeId: string, userId: string, eventKey: string, title: string, body: string) {
-  const r = await c.query(`insert into notifications (college_id, user_id, event_key, title, body, state) values ($1,$2,$3,$4,$5,'delivered')
-    on conflict (college_id, user_id, event_key, channel) do nothing`, [collegeId, userId, eventKey, title, body]);
+export async function notify(c: Db, collegeId: string, userId: string, eventKey: string, title: string, body: string, sender: string | null = null) {
+  const r = await c.query(`insert into notifications (college_id, user_id, event_key, title, body, state, sender) values ($1,$2,$3,$4,$5,'delivered',$6)
+    on conflict (college_id, user_id, event_key, channel) do nothing`, [collegeId, userId, eventKey, title, body, sender]);
   return r.rowCount === 1;
 }
 
@@ -13,7 +13,7 @@ export async function complaintNotify(c: Db, collegeId: string, p: { complaint_i
   const status = p.status ?? 'submitted';
   await notify(c, collegeId, cm.user_id, `complaint:${cm.id}:${status}`, `Complaint ${cm.receipt_no}: ${status.replace('_', ' ')}`, 'Open the complaint to see its timeline.');
   if (status === 'submitted' || status === 'reopened')
-    for (const s of await many(c, `select user_id from memberships where college_id = $1 and role = 'finance_staff' and status = 'active'`, [collegeId]))
+    for (const s of await many(c, `select user_id from memberships where college_id = $1 and role = 'admin' and status = 'active'`, [collegeId]))
       await notify(c, collegeId, s.user_id, `complaint:${cm.id}:${status}:staff`, `New complaint ${cm.receipt_no}`, 'A student complaint needs handling.');
 }
 

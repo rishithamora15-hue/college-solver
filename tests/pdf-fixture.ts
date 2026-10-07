@@ -1,4 +1,4 @@
-/** Minimal valid one-font PDF with one text line per page (test fixture; xref offsets computed). */
+/** Minimal valid one-font PDF; each page's text is drawn line by line ("\n" starts a new line). Test fixture; xref offsets computed. */
 export function tinyPdf(pages: string[]) {
   const objs: string[] = ['<< /Type /Catalog /Pages 2 0 R >>', ''];
   const kids: string[] = [];
@@ -6,7 +6,7 @@ export function tinyPdf(pages: string[]) {
   pages.forEach((t, i) => {
     const page = 3 + i * 2, content = page + 1;
     kids.push(`${page} 0 R`);
-    const stream = `BT /F1 12 Tf 50 700 Td (${t.replace(/[()\\]/g, '\\$&')}) Tj ET`;
+    const stream = `BT /F1 12 Tf 50 700 Td ${t.split('\n').map((l) => `(${l.replace(/[()\\]/g, '\\$&')}) Tj`).join(' 0 -16 Td ')} ET`;
     objs[page - 1] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${font} 0 R >> >> /Contents ${content} 0 R >>`;
     objs[content - 1] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });

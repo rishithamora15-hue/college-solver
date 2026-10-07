@@ -7,7 +7,7 @@ import { seed } from '../scripts/seed';
 import { setupCollege } from '../scripts/setup';
 import { tx } from '../src/server/db';
 import { resolveActor, type Actor } from '../src/server/auth';
-import { pgConn } from '../src/server/pgconn';
+import { pem, pgConn } from '../src/server/pgconn';
 import { applySetup as apply, setupInput, setupOverview, studentSetupOptions } from '../src/server/setup';
 import { addStudents } from '../src/server/admin';
 import { studentSubjects } from '../src/server/learn';
@@ -31,7 +31,11 @@ describe('hosted database connection', () => {
       process.env.DATABASE_CA_CERT = PEM;
       const c = pgConn('postgres://u:p@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require');
       expect(c.connectionString).not.toContain('sslmode');
-      expect(c.ssl).toEqual({ ca: PEM, rejectUnauthorized: true });
+      expect(c.ssl).toEqual({ ca: PEM + '\n', rejectUnauthorized: true });
+      // Dashboards keep a pasted certificate as one line, literal \n, or just the body: all rebuild to the real file.
+      const file = readFileSync('prod-ca-2021.crt', 'utf8').replace(/\r/g, '');
+      for (const pasted of [file.replace(/\n/g, ' '), file.replace(/\n/g, '\\n'), file.split('\n').slice(1, -2).join('')])
+        expect(pem(pasted)).toBe(file);
       expect(pgConn('postgres://u:p@localhost:5432/db')).toEqual({ connectionString: 'postgres://u:p@localhost:5432/db' }); // local ignores the hosted CA
     } finally {
       if (before === undefined) delete process.env.DATABASE_CA_CERT; else process.env.DATABASE_CA_CERT = before;

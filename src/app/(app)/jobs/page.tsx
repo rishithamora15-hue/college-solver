@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { pageActor, q } from '@/server/page';
 import { ineligibility, listJobs, profiles, type JobFilter } from '@/server/jobs';
-import { latestConfirmedResume, skillMatch } from '@/server/career';
+import { atsScore, latestConfirmedResume, priority } from '@/server/career';
 import { day, Empty, SectionTabs } from '../../ui';
 
 const opt = <T extends string>(v: string | undefined, ok: readonly T[]) => (ok.includes(v as T) ? (v as T) : undefined);
@@ -40,7 +40,8 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Rec
             <p className="muted">{j.company}{j.is_fictional && ' (fictional sample)'}</p>
             <div className="job-meta"><span className="badge info">{j.category === 'it' ? 'IT' : 'Non-IT'}</span>
               {j.expired ? <span className="badge bad">expired</span> : j.stale ? <span className="badge warn">not re-verified in 14 days</span> : <span className="badge ok">open</span>}
-              {rv && (() => { const m = skillMatch(j.jd, rv.facts.items); return m.want.length > 0 && <span className={`badge ${m.have.length === m.want.length ? 'ok' : 'neutral'}`} title={`Asked: ${m.want.join(', ')}`}>skills {m.have.length} of {m.want.length} on your resume</span>; })()}
+              {rv && (() => { const m = atsScore(`${j.role}
+${j.jd}`, rv.facts.items); return m && <span className={`badge ${m.score >= 70 ? 'ok' : m.score >= 40 ? 'warn' : 'bad'}`} title={m.missing.length ? `Missing: ${m.missing.join(', ')}` : 'Your resume shows every skill it asks for'}>ATS {m.score}/100 · {priority(m.score)}</span>; })()}
               {me && (ineligibility(j, me).length ? <span className="badge neutral" title={ineligibility(j, me).join('; ')}>not eligible</span> : (j.min_cgpa != null || j.max_backlogs != null || j.branches) && <span className="badge info">you&apos;re eligible</span>)}</div>
             <footer><span className="muted">Deadline {day(j.deadline_at)}</span><Link href={`/jobs/${j.id}`}>View role →</Link></footer>
           </article>

@@ -19,29 +19,6 @@ export default async function Career() {
       <p className="page-lead">Upload your resume, confirm your real skills, and see your ATS match with every open role, what to learn next, and which roles to go for first.</p>
       <SectionTabs section="career" current="/career" />
       <ResumeEditor initial={(latest?.facts.items ?? []).map((f: any) => ({ section: f.section, text: f.text }))} />
-      <div className="split">
-        <section className="card">
-          <h2>3. Compare with a job</h2>
-          {latest ? <>
-            <p className="muted">Uses confirmed resume version {latest.version} (confirmed {when(latest.confirmed_at)}). Suggestions never add facts you did not confirm.</p>
-            <JdAnalysis key={latest.id} resumeVersionId={latest.id} jobs={jobs.map((j) => ({ id: j.id, label: `${j.role} · ${j.company}` }))} />
-          </> : <p className="muted">Confirm a resume version first.</p>}
-        </section>
-        <section className="card tone-sky">
-          <h2>What to learn next</h2>
-          {!report ? <p className="muted">Upload and confirm your resume to see which skills open roles want from you.</p>
-            : !report.learn.length ? <p className="muted">{report.roles.some((x) => x.ats && !x.job.why.length) ? 'Your resume already shows every skill the open roles you can apply for ask for.' : 'No open role you are eligible for lists skills we can compare yet.'}</p> : <>
-            <p className="muted">Ordered by how many ATS points each skill would add across the roles you are eligible for. Add a skill to your resume only after you have actually used it.</p>
-            <ol className="att-list">{report.learn.slice(0, 8).map((l) => (
-              <li key={l.skill}>
-                <div className="att-head"><strong>{l.skill}</strong><span className={`badge ${l.points >= 30 ? 'bad' : l.points >= 15 ? 'warn' : 'neutral'}`}>+{l.points} ATS points</span></div>
-                <small className="muted">Asked by {l.roles.length} role{l.roles.length > 1 ? 's' : ''}: {l.roles.join('; ')}</small>
-              </li>
-            ))}</ol>
-          </>}
-          {fixes.length > 0 && <p className="muted">Also missing from your resume: {fixes.map((f) => `${f.label.toLowerCase()} (+${f.points})`).join(', ')}.</p>}
-        </section>
-      </div>
       <section className="card">
         <h2>ATS match with every open role</h2>
         {!report ? <p className="muted">Upload and confirm your resume to score it against the {jobs.length} open role{jobs.length === 1 ? '' : 's'}.</p>
@@ -65,6 +42,29 @@ export default async function Career() {
           ))}</ul>
         </>}
       </section>
+      <div className="split">
+        <section className="card">
+          <h2>3. Compare with a job</h2>
+          {latest ? <>
+            <p className="muted">Uses confirmed resume version {latest.version} (confirmed {when(latest.confirmed_at)}). Suggestions never add facts you did not confirm.</p>
+            <JdAnalysis key={latest.id} resumeVersionId={latest.id} jobs={jobs.map((j) => ({ id: j.id, label: `${j.role} · ${j.company}` }))} />
+          </> : <p className="muted">Confirm a resume version first.</p>}
+        </section>
+        <section className="card tone-sky">
+          <h2>What to learn next</h2>
+          {!report ? <p className="muted">Upload and confirm your resume to see which skills open roles want from you.</p>
+            : !report.learn.length ? <p className="muted">{report.roles.some((x) => x.ats && !x.job.why.length) ? 'Your resume already shows every skill the open roles you can apply for ask for.' : 'No open role you are eligible for lists skills we can compare yet.'}</p> : <>
+            <p className="muted">Ordered by how many ATS points each skill would add across the roles you are eligible for. Add a skill to your resume only after you have actually used it.</p>
+            <ol className="att-list">{report.learn.slice(0, 8).map((l) => (
+              <li key={l.skill}>
+                <div className="att-head"><strong>{l.skill}</strong><span className={`badge ${l.points >= 30 ? 'bad' : l.points >= 15 ? 'warn' : 'neutral'}`}>+{l.points} ATS points</span></div>
+                <small className="muted">Asked by {l.roles.length} role{l.roles.length > 1 ? 's' : ''}: {l.roles.join('; ')}</small>
+              </li>
+            ))}</ol>
+          </>}
+          {fixes.length > 0 && <p className="muted">Also missing from your resume: {fixes.map((f) => `${f.label.toLowerCase()} (+${f.points})`).join(', ')}.</p>}
+        </section>
+      </div>
       <section className="card">
         <h2>Versions</h2>
         <ul>{versions.map((v) => <li key={v.id}>v{v.version} · {v.facts.items.length} facts · {v.confirmed_at ? `confirmed ${when(v.confirmed_at)}` : 'unconfirmed'}</li>)}</ul>

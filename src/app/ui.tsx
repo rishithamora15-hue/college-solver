@@ -1,5 +1,7 @@
 // Shared server-safe presentation helpers. Status always has a text label, never colour alone.
 import type { ReactNode } from 'react';
+import Link from 'next/link';
+import { SECTIONS, type Section } from './sections';
 
 export const inr = (paise: number) =>
   (paise < 0 ? '−' : '') + 'INR ' + (Math.abs(paise) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -22,7 +24,7 @@ export function Status({ s }: { s: string }) {
 export function Source({ ref_, at, stale }: { ref_: string; at: string | Date; stale?: boolean }) {
   return (
     <p className="muted">
-      Source: {ref_} · updated {when(at)} · <strong>synthetic data</strong>
+      Source: {ref_} · updated {when(at)}
       {stale && <> · <span className="badge warn">stale</span></>}
     </p>
   );
@@ -69,4 +71,29 @@ export function targetOptions(classes: { curriculum_id: string; branch: string; 
   return out;
 }
 
-export const initials = (name: string) => name.replace(/\(.*\)/, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
+/** A subject as one clickable tile: code badge, name, semester and state. */
+export function SubjectTiles({ subjects, selected }: { subjects: { id: string; code: string; name: string; semester: number; backlog?: unknown; is_current?: boolean }[]; selected?: string }) {
+  return (
+    <ul className="subject-list">{subjects.map((s) => (
+      <li key={s.id}>
+        <Link className="subject-tile" href={`/learn?s=${s.id}`} aria-current={s.id === selected ? 'page' : undefined}>
+          <span className="subject-code">{s.code}</span>
+          <span className="subject-name">{s.name}
+            <small>Semester {s.semester}{!!s.backlog && <span className="badge warn">backlog</span>}{s.is_current && <span className="badge info">current</span>}</small>
+          </span>
+        </Link>
+      </li>
+    ))}</ul>
+  );
+}
+
+export const initials =(name: string) => name.replace(/\(.*\)/, '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
+
+/** Tab bar shared by the pages of one student section. `current` is the href of this page. */
+export function SectionTabs({ section, current }: { section: Section; current: string }) {
+  return (
+    <nav className="tabs" aria-label="Section pages">
+      {SECTIONS[section].map(([href, label]) => <Link key={href} href={href} aria-current={href === current ? 'page' : undefined}>{label}</Link>)}
+    </nav>
+  );
+}

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One-command local synthetic demo. Run with Git Bash on Windows: bash run.sh
+# One-command start. Run with Git Bash on Windows: bash run.sh
+# Uses DATABASE_URL from .env: a local database is started for you; a hosted one (e.g. Supabase) is used as is.
 set -Eeuo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
@@ -39,22 +40,32 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-echo 'Starting local PostgreSQL...'
-node node_modules/tsx/dist/cli.mjs scripts/local-db.ts & db_pid=$!
-ready=0
-for attempt in {1..30}; do
-  if node --env-file=.env --input-type=module -e '
-    import pg from "pg";
-    const c = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 1000 });
-    try { await c.connect(); await c.end(); } catch { process.exit(1); }
-  ' >/dev/null 2>&1; then ready=1; break; fi
-  if ! kill -0 "$db_pid" 2>/dev/null; then echo 'Local database exited early.' >&2; exit 1; fi
-  sleep 1
-done
-if [[ "$ready" != 1 ]]; then echo 'Local database did not become ready.' >&2; exit 1; fi
+if node --env-file=.env -e 'const h = new URL(process.env.DATABASE_URL).hostname; process.exit(["localhost", "127.0.0.1", "::1"].includes(h) ? 0 : 1)'; then
+  echo 'Starting local PostgreSQL...'
+  node node_modules/tsx/dist/cli.mjs scripts/local-db.ts & db_pid=$!
+  ready=0
+  for attempt in {1..30}; do
+    if node --env-file=.env --input-type=module -e '
+      import pg from "pg";
+      const c = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 1000 });
+      try { await c.connect(); await c.end(); } catch { process.exit(1); }
+    ' >/dev/null 2>&1; then ready=1; break; fi
+    if ! kill -0 "$db_pid" 2>/dev/null; then echo 'Local database exited early.' >&2; exit 1; fi
+    sleep 1
+  done
+  if [[ "$ready" != 1 ]]; then echo 'Local database did not become ready.' >&2; exit 1; fi
+else
+  echo 'Using the hosted database from DATABASE_URL.'
+fi
 
 node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/migrate.ts
-node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/seed.ts
+if ! node --env-file=.env node_modules/tsx/dist/cli.mjs scripts/setup.ts --check; then
+  echo
+  echo 'No college is set up yet. In another terminal run once:'
+  echo '  npm run setup -- "<College name>" <admin email> <password> "<Admin name>"'
+  echo 'then sign in as that administrator and open College setup.'
+  echo
+fi
 
 echo 'Starting background worker...'
 node --env-file=.env node_modules/tsx/dist/cli.mjs src/worker/main.ts & worker_pid=$!

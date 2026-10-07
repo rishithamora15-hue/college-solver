@@ -1,9 +1,10 @@
 // Controlled release step: applies db/migrations/*.sql in order, each in its own transaction, as the owner role.
 import { readdirSync, readFileSync } from 'node:fs';
 import pg from 'pg';
+import { pgConn } from '../src/server/pgconn';
 
 export async function migrate(url = process.env.DATABASE_URL) {
-  const c = new pg.Client({ connectionString: url });
+  const c = new pg.Client(pgConn(url));
   await c.connect();
   try {
     await c.query('create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())');

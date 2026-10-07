@@ -62,6 +62,7 @@ test('student requests a certificate; the office approves; the student prints it
 });
 
 test('office records a payment; the student gets a receipt; ineligible drive is blocked; rounds reach the student', async ({ browser }) => {
+  test.slow(); // four signed-in actors; first-visit dev compiles alone take ~60 s of the 90 s default
   const admin = await (await browser.newContext()).newPage();
   await signIn(admin, 'admin');
   await admin.goto(`/admin/students/${ID.ashaStudent}`);

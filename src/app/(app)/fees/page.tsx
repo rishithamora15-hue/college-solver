@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { pageActor, q } from '@/server/page';
 import { feeOverview } from '@/server/finance';
 import { studentPayments } from '@/server/admin';
-import { day, Empty, inr, Source, Status } from '../../ui';
+import { day, Empty, inr, Source, Status, SectionTabs } from '../../ui';
 
 export default async function Fees() {
   const a = await pageActor();
@@ -12,6 +12,7 @@ export default async function Fees() {
     <>
       <span className="page-eyebrow">Financial support</span><h1>Fees &amp; Scholarships</h1>
       <p className="page-lead">Know what you owe, what has actually been credited and what needs your attention.</p>
+      <SectionTabs section="office" current="/fees" />
       {f.stale && <div className="banner warn" role="status">Fee data is older than 7 days and may be out of date.</div>}
       {!f.years.length && <Empty>No fee records found for you.</Empty>}
       {f.years.map((y) => (

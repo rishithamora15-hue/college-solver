@@ -5,13 +5,13 @@ Status: the app is complete and verified **locally** on synthetic data (see [doc
 ## Owner actions, in order (about 1–2 h with access)
 
 1. **Approve spend and pick accounts.** Render web + worker (`starter` in [render.yaml](render.yaml); Render has no free worker tier), Supabase project, and Anthropic API usage with a daily ceiling. Check current prices yourself; this repo assumes none.
-2. **Supabase.** Create the project. Copy the pooled Postgres connection string, `SUPABASE_URL` and the anon key. Disable public sign-ups.
-3. **Anthropic.** Create an API key with a spend limit. Choose a model ID for `RUNTIME_MODEL` (for example `claude-sonnet-5-5`).
+2. **Supabase.** Create the project (region: Mumbai `ap-south-1`). Copy the **Session pooler** connection string into `DATABASE_URL` and download the CA certificate (Database settings → SSL configuration) into `DATABASE_CA_CERT` (file path locally, PEM text on Render). Migration 007 removes Supabase Data API access to every table; the app connects to Postgres directly and never uses the anon key.
+3. **AI provider.** Gemini (chosen by the owner): create a key in Google AI Studio with a spend limit, set `AI_PROVIDER=gemini`, `GEMINI_API_KEY` and `RUNTIME_MODEL` (for example `gemini-3.8-flash`) on **both** web and worker. Anthropic still works with `AI_PROVIDER=anthropic`.
 4. **Push the code.** Create a private GitHub repo and push: `git remote add origin <url> && git push -u origin master`.
 5. **Render.** New Blueprint → this repo → fill the `sync:false` values. Set `APP_ORIGIN` to the exact `https://…onrender.com` origin. Deploy. `preDeployCommand` runs the migrations.
-6. **Seed synthetic data once** from your machine: `DATABASE_URL=<supabase url> npm run db:seed`.
-7. **Turn on live AI.** On both services set `AI_PROVIDER=anthropic`, then run one tutor question. The run banner must show "Live AI: <model>", not "Mock".
-8. **Hosted smoke.** `/api/v1/health/ready` returns 200. Sign in as student `asha@college-a.example` (roll number `22A91A0501`) and complete the four journeys. Sign in as `meera@college-b.example` (`22B81A0501`) and confirm `/fees/00000000-0000-4000-8000-000000000073` shows "not found".
+6. **Create the college once** from your machine (with the Supabase values in `.env`): `npm run db:migrate` then `npm run setup -- "<College name>" <admin email> <password> "<Admin name>"`. Then sign in and complete **College setup**. Never run the test fixtures against Supabase (the script refuses).
+7. **Turn on live AI.** On both services set `AI_PROVIDER=gemini` (with key and model), then ask one tutor question and submit one quiz. The run banner must show "Live AI: <model>", not "Mock".
+8. **Hosted smoke.** `/api/v1/health/ready` returns 200. Add one real student, sign in as them (roll number as password) and complete the four journeys.
 9. **Rollback rehearsal.** Render → web service → Rollback to the previous deploy, then confirm health. Record the result in RELEASE-EVIDENCE.md.
 10. **Alerts.** Render notifications for deploy failures and health check failures, plus a Supabase usage alert.
 

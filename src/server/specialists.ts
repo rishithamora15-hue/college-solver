@@ -7,6 +7,7 @@ import { scholarshipDetail } from './finance';
 import { retrieve, subjectAccess } from './learn';
 import { COMMON_RULES, untrusted } from './ai';
 import { skillsIn } from './career';
+import { getAttempt, moduleHref, pathModules, pct, PATHS, prepState, quizHistory, quizReport, readiness, TRACKS } from './prep';
 
 export type ToolOut = { context: any; evidence: string[]; receipts: { tool: string; evidence: string[]; observed_at: string }[] };
 type Spec = {
@@ -76,7 +77,7 @@ Schema: {"answer": string, "possible_cause": string, "claims": [{"text": string,
 };
 
 const tutor: Spec = {
-  promptVersion: 'tutor-v1',
+  promptVersion: 'tutor-v2',
   async tools(c, a, studentId, input) {
     const s = await subjectAccess(c, a, studentId, input.curriculum_subject_id);
     const chunks = await retrieve(c, a, s, input.question);
@@ -86,25 +87,39 @@ const tutor: Spec = {
       evidence: ev, receipts: [{ tool: 'academic_retrieval', evidence: ev, observed_at: now() }],
     };
   },
-  preempt: (ctx) => ctx.sources.length ? null : {
-    abstained: true, answer: `I could not find this in the approved materials for ${ctx.subject}. Try rephrasing, pick another topic, or ask your faculty.`, claims: [], uncertainties: ['No approved source matched the question.'],
-  },
-  system: `You are the learning specialist (tutor) for one selected subject. Teach using ONLY the supplied approved sources: theory, a worked example, code explanation where relevant, and a practical application.
-Cite source ids like [chunk:...] in claims. If the sources do not support an answer, set abstained=true and say so. You may add brief general knowledge ONLY in "supplemental", clearly separate from cited claims.
+  system: `You are the learning specialist (tutor) for one selected subject.
+If the supplied approved sources cover the question: teach from them (theory, a worked example, code explanation where relevant, a practical application), set from_notes=true and cite source ids like [chunk:...] in claims. Extra general knowledge goes ONLY in "supplemental".
+If the sources are empty or do not cover the question: answer from general knowledge like a good tutor, set from_notes=false and claims=[]. The app labels this "not from your notes".
+Always give key_points: 3 to 6 short points the student must remember for exams.
+If the question is not about studies, or asks for something harmful, set abstained=true with a one-line answer.
 Code shown is illustrative and was not executed; say so if you show output.
 ${COMMON_RULES}
-Schema: {"answer": string, "claims": [{"text": string, "source_ids": [string]}], "uncertainties": [string], "abstained": boolean, "supplemental": string}`,
+Schema: {"answer": string, "key_points": [string], "claims": [{"text": string, "source_ids": [string]}], "from_notes": boolean, "uncertainties": [string], "abstained": boolean, "supplemental": string}`,
   user: (ctx, input) => `Subject: ${ctx.subject}${ctx.topic ? ` / Topic: ${ctx.topic}` : ''}\n${untrusted('sources', ctx.sources)}\n${untrusted('student_question', input.question)}`,
-  schema: z.object({ answer: z.string().min(1).max(6000), claims: claimsSchema, uncertainties: z.array(z.string().max(400)).max(6), abstained: z.boolean(), supplemental: z.string().max(1500).optional() }),
+  schema: z.object({
+    answer: z.string().min(1).max(6000), key_points: z.array(z.string().min(1).max(300)).max(8), claims: claimsSchema, from_notes: z.boolean(),
+    uncertainties: z.array(z.string().max(400)).max(6), abstained: z.boolean().default(false), supplemental: z.string().max(1500).optional(),
+  }),
   verify: (r, t) => {
     const errs = citesKnown(r.claims, t.evidence);
-    if (!r.abstained && r.claims.length === 0) errs.push('non-abstaining answer must cite at least one source');
+    if (r.abstained) return errs;
+    if (!r.key_points.length) errs.push('give 3 to 6 key_points');
+    if (r.from_notes && !t.context.sources.length) errs.push('no sources were supplied, so from_notes must be false');
+    if (r.from_notes && r.claims.length === 0) errs.push('an answer from notes must cite at least one source');
+    if (!r.from_notes && r.claims.length) errs.push('a general-knowledge answer must not cite sources (claims must be [])');
     return errs;
   },
-  fixture: (t) => ({
-    abstained: false, answer: `From your notes: ${t.context.sources[0].text.slice(0, 400)}`,
-    claims: [{ text: t.context.sources[0].text.slice(0, 160), source_ids: [t.context.sources[0].id] }], uncertainties: [],
-  }),
+  fixture: (t, input) => {
+    const src = t.context.sources[0];
+    return src ? {
+      answer: `From your notes: ${src.text.slice(0, 400)}`, from_notes: true, abstained: false, uncertainties: [],
+      key_points: [src.section, ...src.text.split(/(?<=\.)\s+/).slice(0, 3)].map((p: string) => p.slice(0, 200)),
+      claims: [{ text: src.text.slice(0, 160), source_ids: [src.id] }],
+    } : {
+      answer: `General explanation (mock AI, not from your notes) for: ${String(input.question).slice(0, 200)}`, from_notes: false, abstained: false, claims: [],
+      key_points: ['Define the term in one line.', 'Learn one worked example.', 'Check this with your faculty notes.'], uncertainties: ['Not found in your approved notes.'],
+    };
+  },
 };
 
 const career: Spec = {
@@ -168,9 +183,72 @@ Schema: {"answer": string, "suggestions": [{"original_fact_id": string, "propose
   }),
 };
 
-export const SPECIALISTS: Record<'scholarship' | 'tutor' | 'career', Spec> = { scholarship, tutor, career };
+const coach: Spec = {
+  promptVersion: 'coach-v1',
+  async tools(c, a, studentId, input) {
+    const at = await getAttempt(c, a, studentId, input.attempt_id);
+    if (!at.submitted_at) throw new Error('quiz_not_submitted');
+    const hist = (await quizHistory(c, a, studentId)).filter((h) => h.track === at.track);
+    const i = hist.findIndex((h) => h.id === at.id);
+    const prev = i > 0 ? pct(hist[i - 1].correct, hist[i - 1].total) : null;
+    const rep = quizReport(at, prev);
+    const st = await prepState(c, a, studentId);
+    const dims = readiness(at.learning_path, st).dims.map((d) => ({ area: d.label, score: d.score }));
+    const modules = pathModules(at.learning_path, at.track).map((m) => ({ id: m.id, title: m.title, href: moduleHref(m) }));
+    const ev = [`quiz:${at.id}`, ...modules.map((m) => `module:${m.id}`)];
+    return {
+      context: {
+        target_role: PATHS[at.learning_path].label, area: TRACKS[at.track], score_percent: rep.score, correct: at.correct, total: at.total,
+        previous_score_percent: prev, change_points: rep.delta, history_percent: hist.slice(0, i + 1).slice(-6).map((h) => pct(h.correct, h.total)),
+        by_module: rep.modules.map((m) => ({ module_id: m.id, title: m.title, correct: m.correct, total: m.total, percent: pct(m.correct, m.total) })),
+        readiness_areas: dims, modules, rules_report: { headline: rep.headline, encouragement: rep.encouragement },
+      },
+      evidence: ev,
+      receipts: [{ tool: 'read_quiz_result', evidence: [ev[0]], observed_at: now() }, { tool: 'read_course_modules', evidence: ev.slice(1), observed_at: now() }],
+    };
+  },
+  system: `You are a warm, honest placement-preparation coach for a college student who just finished a self-evaluation quiz.
+Using ONLY the supplied quiz data, write:
+- summary: one or two sentences on how the quiz went.
+- strengths: what the student did well, tied to module_id values from "modules". Be specific and encouraging.
+- gaps: what the student is lacking, tied to module_id values from "modules".
+- next_steps: 2 to 4 concrete actions (which module to revise, what kind of practice, then retake a quiz), each with a module_id.
+- encouragement: one sincere line. If the score is high, praise it and suggest a harder next challenge; if low, be supportive and specific.
+Mention only percentages that appear in the data. Never predict hiring outcomes, salaries or selection chances.
+${COMMON_RULES}
+Schema: {"summary": string, "strengths": [{"module_id": string, "text": string}], "gaps": [{"module_id": string, "text": string}], "next_steps": [{"module_id": string, "action": string}], "encouragement": string}`,
+  user: (ctx) => untrusted('quiz_result', ctx),
+  schema: z.object({
+    summary: z.string().min(1).max(600),
+    strengths: z.array(z.object({ module_id: z.string(), text: z.string().min(1).max(400) })).max(5),
+    gaps: z.array(z.object({ module_id: z.string(), text: z.string().min(1).max(400) })).max(5),
+    next_steps: z.array(z.object({ module_id: z.string(), action: z.string().min(1).max(400) })).min(1).max(5),
+    encouragement: z.string().min(1).max(400),
+  }),
+  verify(r, t) {
+    const errs: string[] = [];
+    const ids = new Set(t.context.modules.map((m: any) => m.id));
+    for (const x of [...r.strengths, ...r.gaps, ...r.next_steps]) if (!ids.has(x.module_id)) errs.push(`unknown module_id ${x.module_id}`);
+    const known = new Set(JSON.stringify(t.context).match(/\d+/g));
+    for (const p of JSON.stringify(r).match(/\d+(?=\s*%)/g) ?? []) if (!known.has(p)) errs.push(`percentage ${p}% is not in the quiz data`);
+    if (/(hiring|selection|placement) (chance|probability)|guarantee/i.test(JSON.stringify(r))) errs.push('no hiring predictions');
+    return errs;
+  },
+  fixture: (t) => {
+    const ctx = t.context, weak = ctx.by_module.filter((m: any) => m.percent < 60), good = ctx.by_module.filter((m: any) => m.percent >= 80);
+    return {
+      summary: `${ctx.rules_report.headline} (mock AI coach)`,
+      strengths: good.map((m: any) => ({ module_id: m.module_id, text: `${m.title}: ${m.correct} of ${m.total} right.` })),
+      gaps: weak.map((m: any) => ({ module_id: m.module_id, text: `${m.title}: ${m.correct} of ${m.total} right.` })),
+      next_steps: (weak.length ? weak : ctx.by_module).slice(0, 3).map((m: any) => ({ module_id: m.module_id, action: `Re-read the key points of ${m.title}, then retake a quiz.` })),
+      encouragement: ctx.rules_report.encouragement,
+    };
+  },
+};
+
+export const SPECIALISTS: Record<'scholarship' | 'tutor' | 'career' | 'coach', Spec> = { scholarship, tutor, career, coach };
 
 /** Deterministic router: screen/intent -> specialist. No model involved. */
 export function route(screen: string): keyof typeof SPECIALISTS | null {
-  return ({ fees: 'scholarship', scholarship: 'scholarship', learn: 'tutor', career: 'career', jobs: 'career' } as const)[screen as 'fees'] ?? null;
+  return ({ fees: 'scholarship', scholarship: 'scholarship', learn: 'tutor', career: 'career', jobs: 'career', quiz: 'coach' } as const)[screen as 'fees'] ?? null;
 }

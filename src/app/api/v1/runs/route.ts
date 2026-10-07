@@ -5,6 +5,7 @@ import { route as pick } from '@/server/specialists';
 import { scholarshipDetail } from '@/server/finance';
 import { subjectAccess } from '@/server/learn';
 import { one } from '@/server/db';
+import { getAttempt } from '@/server/prep';
 
 // Input contract per specialist. Ownership is checked here for a clear error AND again by the worker at run time.
 const INPUT = {
@@ -12,6 +13,7 @@ const INPUT = {
   tutor: z.object({ curriculum_subject_id: z.uuid(), topic: z.string().max(100).optional(), question: z.string().trim().min(3).max(1000) }).strict(),
   career: z.object({ resume_version_id: z.uuid(), job_id: z.uuid().optional(), jd_text: z.string().trim().min(20).max(8000).optional() }).strict()
     .refine((x) => !!x.job_id !== !!x.jd_text, { message: 'Give a job or a job description', path: ['jd_text'] }),
+  coach: z.object({ attempt_id: z.uuid() }).strict(),
 };
 
 export const POST = route(async (req) => {
@@ -26,6 +28,7 @@ export const POST = route(async (req) => {
   const res = await scoped(a, async (c) => {
     if (kind === 'scholarship') await scholarshipDetail(c, a, sid, i.case_id);
     if (kind === 'tutor') await subjectAccess(c, a, sid, i.curriculum_subject_id);
+    if (kind === 'coach' && !(await getAttempt(c, a, sid, i.attempt_id)).submitted_at) throw notFound();
     if (kind === 'career' && !(await one(c, 'select 1 from resume_versions where college_id = $1 and student_id = $2 and id = $3 and confirmed_at is not null', [a.collegeId, sid, i.resume_version_id]))) throw notFound();
     return createRun(c, a, sid, kind, i);
   });

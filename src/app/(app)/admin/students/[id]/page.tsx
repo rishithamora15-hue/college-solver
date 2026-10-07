@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { isUuid } from '@/server/http';
 import { orNull, pageActor, q } from '@/server/page';
 import { ADMIN_CASE_STATUSES, studentFile } from '@/server/admin';
-import { CaseStatusForm, CreditForm, DocState, FeeEdit, FeeForm, NoticeForm, PaymentForm, StudentEdit } from '../../../../client';
+import { CaseStatusForm, CreditForm, DocState, FeeEdit, FeeForm, NoticeForm, PaymentForm, QuickForm, StudentEdit } from '../../../../client';
+import { studentSetupOptions } from '@/server/setup';
 import { MIN_ATTENDANCE } from '@/server/academics';
 import { REQUEST_KINDS } from '@/server/requests';
 import { day, initials, inr, NotFound, Status, when } from '../../../../ui';
@@ -11,8 +12,9 @@ export default async function StudentFile({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const a = await pageActor();
   if (!a.roles.includes('admin')) return <NotFound what="This student" />;
-  const f = isUuid(id) ? await orNull(q(a, (c) => studentFile(c, a, id))) : null;
+  const f = isUuid(id) ? await orNull(q(a, async (c) => ({ ...await studentFile(c, a, id), opts: await studentSetupOptions(c, a, id) }))) : null;
   if (!f) return <NotFound what="This student" />;
+  const { opts } = f;
   const { st, fees, docs, notices, payments, uploads, attendance, requests } = f;
   const owed = fees.years.reduce((t, y) => t + Math.max(0, y.rows.reduce((s, r) => s + Math.max(0, r.outstanding_paise), 0)), 0);
   return (
@@ -79,7 +81,29 @@ export default async function StudentFile({ params }: { params: Promise<{ id: st
         </section>
       </div>
       <h2 className="section-title">Scholarships</h2>
-      {!fees.cases.length && <p className="muted">No scholarship applications.</p>}
+      <div className="split">
+        <section className="card tone-teal">
+          <h3>Open a scholarship application</h3>
+          {!opts.schemes.length ? <p className="muted">Add a scheme under <Link href="/admin/setup?tab=scholarships">College setup</Link> first.</p> : (
+            <QuickForm kind="case" extra={{ student_id: st.id }} submit="Open application" done="Application opened. The student sees it under Fees." fields={[
+              { name: 'scheme_id', label: 'Scheme', type: 'select', options: opts.schemes.map((s: any) => [s.id, s.name]) },
+              { name: 'academic_year', label: 'Academic year', placeholder: '2026-27' }, { name: 'expected_rupees', label: 'Expected amount (INR)', type: 'number' },
+              { name: 'status', label: 'Current status', type: 'select', options: [['applied', 'Applied'], ['under_verification', 'Under verification'], ['approved', 'Approved'], ['needs_documents', 'Needs documents'], ['not_applied', 'Not applied yet']] }]} />
+          )}
+        </section>
+        <section className="card">
+          <h3>Backlogs</h3>
+          <p className="muted">A subject with an active backlog stays open to the student in Learn, even from earlier semesters.</p>
+          {opts.subjects.some((s: any) => s.backlog) && <ul className="inline-list">{opts.subjects.filter((s: any) => s.backlog).map((s: any) => (
+            <li key={s.id} className="request-row"><span>Sem {s.semester} · {s.code} {s.name} <Status s={s.backlog} /></span>
+              <QuickForm compact kind="backlog" extra={{ student_id: st.id, curriculum_subject_id: s.id, status: s.backlog === 'active' ? 'cleared' : 'active' }} submit={s.backlog === 'active' ? 'Mark cleared' : 'Mark active'} done="Saved." /></li>
+          ))}</ul>}
+          {opts.subjects.length > 0 ? <QuickForm kind="backlog" extra={{ student_id: st.id, status: 'active' }} submit="Add backlog" done="Backlog added." fields={[
+            { name: 'curriculum_subject_id', label: 'Subject', type: 'select', options: opts.subjects.map((s: any) => [s.id, `Sem ${s.semester} · ${s.code} ${s.name}`]) }]} />
+            : <p className="muted">No syllabus subjects for this student's branch yet.</p>}
+        </section>
+      </div>
+      {!fees.cases.length && <p className="muted">No scholarship applications yet.</p>}
       {fees.cases.map((k) => (
         <section className="card tone-teal" key={k.id}>
           <div className="card-head"><h3>{k.scheme_name} · {k.academic_year}</h3><Status s={k.status} /></div>

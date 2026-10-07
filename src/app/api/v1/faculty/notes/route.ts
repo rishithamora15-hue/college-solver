@@ -7,7 +7,7 @@ const meta = z.object({
   exam_year: z.preprocess((v) => (v ? Number(v) : null), z.number().int().min(2000).max(2100).nullable()),
 });
 
-/** Paste text (searchable by the AI tutor) or upload a .txt / PDF (PDF is download-only). Max 5 MB. */
+/** Paste text or upload a .txt / PDF; both become searchable by the AI tutor (PDFs only if they contain text, not scans). Max 5 MB. */
 export const POST = route(async (req) => {
   const a = await requireActor(req, 'faculty');
   const form = await formOf(req);

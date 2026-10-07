@@ -30,7 +30,7 @@ export async function profiles(c: Db, a: Actor, studentId?: string): Promise<Pro
 }
 
 export async function listJobs(c: Db, a: Actor, f: JobFilter) {
-  return many(c, `select id, company, role, category, campus_type, level, location, deadline_at, verified_at, is_fictional, min_cgpa, max_backlogs, branches,
+  return many(c, `select id, company, role, category, campus_type, level, location, jd, deadline_at, verified_at, is_fictional, min_cgpa, max_backlogs, branches,
       deadline_at < now() expired, verified_at < now() - interval '14 days' stale
     from opportunities where college_id = $1 and status = 'published'
       and ($2::text is null or category = $2) and ($3::text is null or campus_type = $3) and ($4::text is null or level = $4)

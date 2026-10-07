@@ -8,6 +8,8 @@ Open `college-solver-kit` as the VS Code workspace root. `(app)` is a Next.js ro
 | Fees and scholarships | `fees/page.tsx`, `fees/[caseId]/page.tsx` | `runs` | `finance.ts`, `ai.ts`, `runs.ts`, `specialists.ts` | `journeys.spec.ts` |
 | Complaints | `complaints/page.tsx`, `complaints/new/page.tsx`, `complaints/[id]/page.tsx` | `complaint-drafts`, `complaints`, `complaints/[id]/events` | `complaints.ts`, `notify.ts` | `journeys.spec.ts` |
 | Learning and tutor | `learn/page.tsx`, `learn/tutor.tsx` | `runs`, `documents/[id]/download` | `learn.ts`, `ai.ts`, `runs.ts`, `specialists.ts` | `journeys.spec.ts` |
+| Skill prep (learning path, LMS course, aptitude/communication/coding/interview practice, job readiness) | `prep/page.tsx`, `prep/[track]/page.tsx`, `prep/parts.tsx`, readiness section of `page.tsx` | `prep/path`, `prep/answers`, `prep/progress` | `prep.ts` (rules), `prep-bank.ts` (paths, modules, questions) | `prep.spec.ts`, `mobile.spec.ts` |
+| Quiz sessions, progress tracker, AI coach | `prep/quiz/page.tsx` (tracker), `prep/quiz/[id]/page.tsx` (paper / report) | `prep/quizzes`, `prep/quizzes/[id]`, `runs` (coach) | `prep.ts` (quiz rules), `specialists.ts` (`coach`), `runs.ts` | `prep.spec.ts` |
 | Resume and career | `career/page.tsx` | `resume/preview`, `resume-versions`, `runs` | `career.ts`, `ai.ts`, `runs.ts`, `specialists.ts` | `journeys.spec.ts` |
 | Jobs | `jobs/page.tsx`, `jobs/[id]/page.tsx` | `jobs/[id]/track` | `jobs.ts` | `journeys.spec.ts`, `mobile.spec.ts` |
 | Settings (name, mobile number) | `settings/page.tsx` | `notification-preferences`, `me/profile` | `profile.ts` | `journeys.spec.ts` |
@@ -15,6 +17,7 @@ Open `college-solver-kit` as the VS Code workspace root. `(app)` is a Next.js ro
 | Placement cell | `placement/page.tsx`, `placement/jobs/[id]/page.tsx` | `placement/jobs`, `placement/jobs/[id]`, `placement/jobs/[id]/nudge` | `jobs.ts` | `journeys.spec.ts`, `visual.spec.ts` |
 | Academics (timetable, attendance, marks, notes) | `academics/page.tsx`, `faculty/page.tsx`, `faculty/classes/[id]/page.tsx`, `admin/academics/page.tsx` | `faculty/attendance`, `faculty/assessments`, `faculty/notes`, `admin/assignments`, `admin/timetable` | `academics.ts` | `college.spec.ts` |
 | Requests and uploads | `requests/page.tsx`, `requests/[id]/page.tsx` (certificate), `admin/requests/page.tsx`, `fees/[caseId]/page.tsx` | `requests`, `admin/requests/[id]`, `uploads`, `uploads/[id]` | `requests.ts` | `college.spec.ts` |
+| College setup (real data) | `admin/setup/page.tsx`, student file `admin/students/[id]/page.tsx` | `admin/setup` | `setup.ts`, `scripts/setup.ts` (first college + admin), `pgconn.ts` (Supabase TLS) | `setup.spec.ts`, `mobile.spec.ts` |
 | Office money and records | `admin/students/*`, `admin/fees/page.tsx`, `admin/notices/page.tsx`, `receipts/[id]/page.tsx` | `admin/students`, `admin/fees`, `admin/payments`, `admin/cases/[id]/credit`, `admin/broadcast`, `admin/export` | `admin.ts`, `finance.ts` | `college.spec.ts` |
 | Placement rounds and stats | `placement/jobs/[id]/page.tsx`, `placement/stats/page.tsx` | `placement/jobs/[id]/stage`, `placement/export` | `jobs.ts` | `college.spec.ts` |
 | Notices (live pop-ups) | `client.tsx` (`NoticeCenter`) in `(app)/layout.tsx` | `notifications` | `notify.ts` | `journeys.spec.ts` |
@@ -22,6 +25,7 @@ Open `college-solver-kit` as the VS Code workspace root. `(app)` is a Next.js ro
 
 Shared code:
 
+- `src/app/sections.ts`: student sidebar (6 entries) and the tab bars that group related pages (`SectionTabs` in `ui.tsx`).
 - `src/app/(app)/layout.tsx`: signed-in navigation and top bar. `src/app/layout.tsx`: root layout.
 - `src/app/client.tsx`: browser interactions used across screens (sign-in, AI run display, complaint forms, resume editor, job tracking, preferences). Search for the component name shown in a page import to find its implementation.
 - `src/app/ui.tsx`: reusable display helpers (money, dates, status, empty/not-found states).

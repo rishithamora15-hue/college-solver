@@ -111,17 +111,28 @@ describe('run controls', () => {
 });
 
 describe('tutor', () => {
-  it('cites only scoped sources; abstains without a model call when nothing supports the question', async () => {
+  it('cites only scoped sources with points to remember; answers from general knowledge, labelled, when notes do not cover it', async () => {
     const asha = await actor('asha');
     const ok = await tx((c) => createRun(c, asha, ID.ashaStudent, 'tutor', { curriculum_subject_id: ID.csC, question: 'explain pointers with example' }), S(asha));
     await drain();
     const r = await tx((c) => getRun(c, asha, ok.run_id), S(asha));
     expect(r.state).toBe('completed');
+    expect(r.result).toMatchObject({ from_notes: true });
+    expect(r.result.key_points.length).toBeGreaterThan(0);
     expect(r.result.sources.every((s: any) => s.document_id === ID.docC)).toBe(true);
     expect(r.result.sources[0]).toMatchObject({ page: 1, section: 'Pointers', revision: 'rev-1' });
     const none = await tx((c) => createRun(c, asha, ID.ashaStudent, 'tutor', { curriculum_subject_id: ID.csDs, question: 'explain stacks' }), S(asha));
     await drain();
-    expect(await tx((c) => getRun(c, asha, none.run_id), S(asha))).toMatchObject({ state: 'completed', model_calls: 0, result: { abstained: true } });
+    const g = await tx((c) => getRun(c, asha, none.run_id), S(asha));
+    expect(g).toMatchObject({ state: 'completed', model_calls: 1, result: { from_notes: false, claims: [], sources: [] } });
+    expect(g.result.key_points.length).toBeGreaterThan(0);
+  });
+  it('rejects a general answer that pretends to come from notes, and a notes answer without citations', () => {
+    const t = { context: { sources: [] }, evidence: [], receipts: [] };
+    const base = { answer: 'x', key_points: ['k'], claims: [], uncertainties: [], abstained: false };
+    expect(SPECIALISTS.tutor.verify({ ...base, from_notes: true }, t)).toContain('no sources were supplied, so from_notes must be false');
+    expect(SPECIALISTS.tutor.verify({ ...base, from_notes: false }, t)).toEqual([]);
+    expect(SPECIALISTS.tutor.verify({ ...base, from_notes: false, key_points: [] }, t)).toContain('give 3 to 6 key_points');
   });
 });
 

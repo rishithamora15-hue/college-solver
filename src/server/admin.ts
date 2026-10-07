@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { audit, many, one, type Db } from './db';
-import { hashPassword, type Actor } from './auth';
+import { createLogin, type Actor } from './auth';
 import { AppError, notFound } from './http';
 import { feeOverview, rupeesToPaise } from './finance';
 import { notify } from './notify';
@@ -148,7 +148,7 @@ const phoneField = z.string().transform((s) => s.replace(/[\s-]/g, '').replace(/
 export const studentRow = z.object({
   display_name: z.string().trim().min(1).max(80), email: z.email().max(200).transform((e) => e.toLowerCase()),
   roll_no: z.string().trim().toUpperCase().regex(/^[A-Z0-9-]{3,20}$/, 'Roll number: 3-20 letters/digits'),
-  phone: phoneField.optional(), branch: z.string().trim().toUpperCase().min(1).max(10),
+  phone: phoneField.optional(), branch: z.string({ error: 'is missing (add branches under College setup)' }).trim().toUpperCase().min(1).max(10),
   semester: z.coerce.number().int().min(1).max(8), section: z.string().trim().toUpperCase().regex(/^[A-Z]$/).default('A'),
 }).strict();
 
@@ -174,13 +174,25 @@ export async function addStudents(c: Db, a: Actor, raw: unknown[]) {
     for (const r of await many(c, 'select roll_no from students where college_id = $1 and upper(roll_no) = any($2::text[])', [a.collegeId, rows.map((r) => r.roll_no)])) problems.push(`Roll number ${r.roll_no} already exists`);
   }
   if (problems.length) throw new AppError(400, 'rows_invalid', 'Nothing was saved. Fix these and try again.', { problems: problems.slice(0, 50) });
-  const hashes = await Promise.all(rows.map((r) => hashPassword(r.roll_no)));
-  for (const [n, r] of rows.entries()) {
-    const uid = randomUUID();
-    await c.query('insert into app_users (id, auth_subject, email, display_name, password_hash) values ($1,$2,$3,$4,$5)', [uid, 'local:' + randomUUID(), r.email, r.display_name, hashes[n]]);
-    await c.query('select admit_student($1)', [uid]); // memberships are not writable by the runtime role; see migration 004
-    await c.query(`insert into students (id, college_id, user_id, curriculum_id, current_semester, display_name, roll_no, phone, section) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [randomUUID(), a.collegeId, uid, cur[r.branch], r.semester, r.display_name, r.roll_no, r.phone || null, r.section]);
+  // Sign-ins first (10 at a time; in Supabase mode each is a call to Supabase Auth). Any failure removes the ones already made.
+  const logins: Awaited<ReturnType<typeof createLogin>>[] = [];
+  try {
+    for (let n = 0; n < rows.length; n += 10) {
+      const batch = await Promise.allSettled(rows.slice(n, n + 10).map((r) => createLogin(r.email, r.roll_no)));
+      for (const b of batch) if (b.status === 'fulfilled') logins.push(b.value);
+      const failed = batch.find((b) => b.status === 'rejected');
+      if (failed) throw failed.reason;
+    }
+    for (const [n, r] of rows.entries()) {
+      const uid = randomUUID();
+      await c.query('insert into app_users (id, auth_subject, email, display_name, password_hash) values ($1,$2,$3,$4,$5)', [uid, logins[n].subject, r.email, r.display_name, logins[n].hash]);
+      await c.query('select admit_student($1)', [uid]); // memberships are not writable by the runtime role; see migration 004
+      await c.query(`insert into students (id, college_id, user_id, curriculum_id, current_semester, display_name, roll_no, phone, section) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [randomUUID(), a.collegeId, uid, cur[r.branch], r.semester, r.display_name, r.roll_no, r.phone || null, r.section]);
+    }
+  } catch (e) {
+    await Promise.all(logins.map((l) => l.undo().catch(() => {})));
+    throw e;
   }
   await audit(c, { collegeId: a.collegeId, actor: a.userId, action: 'students.add', target: String(rows.length), result: 'ok' });
   return { added: rows.length };

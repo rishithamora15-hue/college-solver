@@ -30,7 +30,7 @@ export default async function Receipt({ params }: { params: Promise<{ id: string
           <tbody>{lines.map((l, i) => <tr key={i}><td>{l.academic_year} · {l.category}</td><td className="num">{inr(l.amount_paise)}</td></tr>)}</tbody>
           <tfoot><tr><th>Total</th><th className="num">{inr(p.amount_paise)}</th></tr></tfoot>
         </table>
-        <footer><span>{p.recorded_by_name ? `Recorded by ${p.recorded_by_name}` : `Source: ${p.source}`} · Synthetic evaluation data.</span><span className="sign">Accounts office</span></footer>
+        <footer><span>{p.recorded_by_name ? `Recorded by ${p.recorded_by_name}` : `Source: ${p.source}`}.</span><span className="sign">Accounts office</span></footer>
       </article>
     </>
   );

@@ -8,6 +8,18 @@ const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const RX = SKILLS.map((s) => [s, new RegExp(`(^|[^a-z0-9+#])${esc(s)}(?![a-z0-9+#])`, 'i')] as const);
 export const skillsIn = (text: string) => RX.filter(([, rx]) => rx.test(text)).map(([s]) => s);
 
+/** Skills a job description asks for, and which of them the confirmed resume facts show. */
+export function skillMatch(jd: string, facts: { text: string }[]) {
+  const have = new Set(facts.flatMap((f) => skillsIn(f.text)));
+  const want = skillsIn(jd);
+  return { want, have: want.filter((s) => have.has(s)) };
+}
+
+export async function latestConfirmedResume(c: Db, a: Actor, studentId: string) {
+  return one<{ id: string; version: number; facts: { items: Fact[] } }>(c, `select id, version, facts from resume_versions
+    where college_id = $1 and student_id = $2 and confirmed_at is not null order by version desc limit 1`, [a.collegeId, studentId]);
+}
+
 export const SECTIONS = ['summary', 'education', 'skill', 'project', 'experience', 'achievement'] as const;
 export type Fact = { id?: string; section: (typeof SECTIONS)[number]; text: string };
 

@@ -24,7 +24,7 @@ export default async function Certificate({ params }: { params: Promise<{ id: st
         <p className="muted">Ref. {r.id.slice(0, 8).toUpperCase()} · Date {day(r.decided_at ?? r.created_at)}</p>
         <p className="paper-body">{BODY[r.kind](r)}</p>
         <p>Purpose: {r.reason}</p>
-        <footer><span>Synthetic evaluation data — not a legal document.</span><span className="sign">Authorised signatory</span></footer>
+        <footer><span>Verify with the administration office using the reference number above.</span><span className="sign">Authorised signatory</span></footer>
       </article>
     </>
   );

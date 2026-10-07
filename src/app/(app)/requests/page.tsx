@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { pageActor, q } from '@/server/page';
 import { myRequests, PRINTABLE, REQUEST_KINDS } from '@/server/requests';
 import { RequestForm } from '../../client';
-import { day, Empty, Status, when } from '../../ui';
+import { day, Empty, Status, when, SectionTabs } from '../../ui';
 
 export default async function Requests() {
   const a = await pageActor();
@@ -13,6 +13,7 @@ export default async function Requests() {
     <>
       <span className="page-eyebrow">Student services</span><h1>Certificates and leave.</h1>
       <p className="page-lead">Ask the administration office for a certificate or apply for leave. You get a notification when it is decided.</p>
+      <SectionTabs section="office" current="/requests" />
       <section className="card tone-violet"><h2>New request</h2><RequestForm /></section>
       <section className="card">
         <h2>Your requests</h2>

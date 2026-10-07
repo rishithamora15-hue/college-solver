@@ -1,6 +1,6 @@
 import { pageActor, q } from '@/server/page';
 import { DAYS, MIN_ATTENDANCE, studentAttendance, studentResults, studentTimetable } from '@/server/academics';
-import { Empty } from '../../ui';
+import { Empty, SectionTabs } from '../../ui';
 
 export default async function Academics() {
   const a = await pageActor();
@@ -14,6 +14,7 @@ export default async function Academics() {
   return (
     <>
       <span className="page-eyebrow">Academics</span><h1>Your classes, attendance and results.</h1>
+      <SectionTabs section="academics" current="/academics" />
       <div className="stat-grid">
         <div className={`stat tone-${overall === null || overall >= MIN_ATTENDANCE ? 'teal' : 'rose'}`}><span className="stat-label">Overall attendance</span><strong className="stat-value">{overall === null ? '—' : `${overall}%`}</strong></div>
         <div className="stat tone-violet"><span className="stat-label">SGPA (published marks)</span><strong className="stat-value">{res.sgpa ?? '—'}</strong></div>

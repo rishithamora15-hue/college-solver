@@ -17,6 +17,8 @@ services:
         value: "22"
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_CA_CERT
+        sync: false            # Supabase CA certificate PEM text (Database settings > SSL configuration)
       - key: SESSION_SECRET
         generateValue: true
       - key: AUTH_MODE
@@ -25,8 +27,12 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false            # Supabase secret key; server only
       - key: AI_PROVIDER
-        value: none            # set to anthropic with a key + model; fixture (mock) is refused in production
+        value: none            # set to gemini (or anthropic) with a key + model; fixture (mock) is refused in production
+      - key: GEMINI_API_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: RUNTIME_MODEL
@@ -51,6 +57,8 @@ services:
         value: "22"
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_CA_CERT
+        sync: false            # Supabase CA certificate PEM text (Database settings > SSL configuration)
       - key: SESSION_SECRET
         fromService: { type: web, name: college-solver-web, envVarKey: SESSION_SECRET }
       - key: AUTH_MODE
@@ -59,8 +67,12 @@ services:
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false            # Supabase secret key; server only
       - key: AI_PROVIDER
         fromService: { type: web, name: college-solver-web, envVarKey: AI_PROVIDER }
+      - key: GEMINI_API_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: RUNTIME_MODEL

@@ -1,17 +1,17 @@
 import { z } from 'zod';
 import { audit, one, type Db } from './db';
-import { checkPassword, hashPassword, type Actor } from './auth';
+import { setLoginPassword, verifyLoginPassword, type Actor } from './auth';
 import { AppError } from './http';
 
 export const passwordSchema = z.object({ current: z.string().min(1).max(200), next: z.string().min(8, 'Use at least 8 characters').max(200) }).strict();
 
 /** Any role. Students' first password is their roll number (accepted in any letter case). */
 export async function changePassword(c: Db, a: Actor, i: z.infer<typeof passwordSchema>) {
-  const u = await one(c, 'select password_hash from app_users where id = $1', [a.userId]);
-  const ok = (await checkPassword(i.current, u?.password_hash)) || (!!a.studentId && (await checkPassword(i.current.toUpperCase(), u?.password_hash)));
+  const u = await one(c, 'select email, auth_subject, password_hash from app_users where id = $1', [a.userId]);
+  const ok = (await verifyLoginPassword(u, i.current)) || (!!a.studentId && (await verifyLoginPassword(u, i.current.toUpperCase())));
   if (!ok) throw new AppError(400, 'bad_password', 'Current password is incorrect', { fields: ['current'] });
   if (i.next.toUpperCase() === i.current.toUpperCase()) throw new AppError(400, 'validation', 'Choose a different password', { fields: ['next'] });
-  await c.query('update app_users set password_hash = $2 where id = $1', [a.userId, await hashPassword(i.next)]);
+  await c.query('update app_users set password_hash = $2 where id = $1', [a.userId, await setLoginPassword(u.auth_subject, i.next)]);
   await audit(c, { collegeId: a.collegeId, actor: a.userId, action: 'password.change', target: a.userId, result: 'ok' });
 }
 

@@ -4,11 +4,8 @@ import type { z } from 'zod';
 import { resolveActor, SESSION_COOKIE, verifySession, type Actor, type Role } from './auth';
 import { env } from './env';
 import { one, tx, type Db } from './db';
-
-export class AppError extends Error {
-  constructor(public status: number, public code: string, message: string, public extra?: Record<string, unknown>) { super(message); }
-}
-export const notFound = () => new AppError(404, 'not_found', 'Not found'); // same answer whether missing or forbidden
+import { AppError, notFound } from './errors';
+export { AppError, notFound } from './errors';
 
 export function route<C>(fn: (req: NextRequest, ctx: C) => Promise<Response>) {
   return async (req: NextRequest, ctx: C) => {

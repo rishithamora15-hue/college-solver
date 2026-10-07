@@ -18,7 +18,6 @@ const ROLES = [
 export default function Welcome() {
   return (
     <div className="home">
-      <p className="home-announce"><span>Evaluation build</span> All names, amounts and listings on this site are synthetic.</p>
       <header className="home-nav">
         <Link href="/welcome" className="home-brand"><span className="brand-mark" aria-hidden="true">✦</span><span>College Solver</span></Link>
         <nav aria-label="Home">

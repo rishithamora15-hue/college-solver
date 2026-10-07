@@ -5,6 +5,7 @@ import { many } from '@/server/db';
 import { NavLinks, NoticeCenter, SignOut } from '../client';
 import { providerLabel } from '@/server/ai';
 import { initials } from '../ui';
+import { STUDENT_NAV } from '../sections';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +14,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const notices = await q(a, (c) => many(c, `select id, title, body, sender, created_at, read_at from notifications
     where college_id = $1 and user_id = $2 and state = 'delivered' order by created_at desc limit 20`, [a.collegeId, a.userId]));
   const p = providerLabel();
-  const items: [string, string][] = a.studentId
-    ? [['/', 'Overview'], ['/academics', 'Academics'], ['/learn', 'Learn'], ['/fees', 'Fees & Scholarships'], ['/requests', 'Requests'],
-      ['/career', 'Career'], ['/jobs', 'Jobs'], ['/complaints', 'Complaints']]
-    : [];
-  if (a.roles.includes('admin')) items.push(['/admin', 'Dashboard'], ['/admin/students', 'Students'], ['/admin/fees', 'Fees & payments'],
+  const items: [string, string, string[]?][] = a.studentId ? [...STUDENT_NAV] : [];
+  if (a.roles.includes('admin')) items.push(['/admin', 'Dashboard'], ['/admin/setup', 'College setup'], ['/admin/students', 'Students'], ['/admin/fees', 'Fees & payments'],
     ['/admin/academics', 'Academics'], ['/admin/requests', 'Requests'], ['/admin/notices', 'Notices'], ['/complaints', 'Complaints']);
   if (a.roles.includes('placement')) items.push(['/placement', 'Placement drives'], ['/placement/stats', 'Statistics']);
   if (a.roles.includes('faculty')) items.push(['/faculty', 'My classes']);
@@ -35,7 +33,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <nav aria-label="Primary"><NavLinks items={items} /></nav>
           <div className="side-footer">
             <span className="side-art" aria-hidden="true" />
-            Synthetic data · AI {p ? (p.live ? `live (${p.model})` : 'mock') : 'off'}
+            AI assistant: {p ? (p.live ? `on (${p.model})` : 'mock (not a real model)') : 'off'}
           </div>
         </aside>
         <div className="stage">

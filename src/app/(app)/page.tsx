@@ -7,17 +7,20 @@ import { many } from '@/server/db';
 import { studentSubjects } from '@/server/learn';
 import { listJobs } from '@/server/jobs';
 import { MIN_ATTENDANCE, studentAttendance, studentResults } from '@/server/academics';
-import { day, inr, Status, when } from '../ui';
+import { prepState, readiness, trainingPlan } from '@/server/prep';
+import { day, inr, Status, SubjectTiles, when } from '../ui';
+import { PlanSteps, ReadinessCard } from './prep/parts';
 
 export default async function Overview() {
   const a = await pageActor();
   if (!a.studentId) redirect(homePath(a));
   const sid = a.studentId;
-  const [fees, subs, jobs, complaints, att, res] = await q(a, async (c) => [
+  const [fees, subs, jobs, complaints, att, res, prep] = await q(a, async (c) => [
     await feeOverview(c, a, sid), await studentSubjects(c, a, sid), await listJobs(c, a, {}),
     await many(c, `select id, receipt_no, status from complaints where college_id = $1 and student_id = $2 and status not in ('verified_closed') order by created_at desc limit 3`, [a.collegeId, sid]),
-    await studentAttendance(c, a, sid), await studentResults(c, a, sid),
+    await studentAttendance(c, a, sid), await studentResults(c, a, sid), await prepState(c, a, sid),
   ] as const);
+  const ready = prep.path ? readiness(prep.path, prep) : null;
   const held = att.reduce((t, s) => t + s.held, 0);
   const pct = held ? Math.round((100 * att.reduce((t, s) => t + s.attended, 0)) / held) : null;
   const low = att.filter((s) => (100 * s.attended) / s.held < MIN_ATTENDANCE);
@@ -70,7 +73,7 @@ export default async function Overview() {
         <section className="card feature-card tone-violet entry-rise" style={{ animationDelay: '.1s' }}>
           <span className="feature-kicker">03 / Academic momentum</span>
           <h2>Continue studying</h2>
-          <ul className="inline-list">{subs.slice(0, 4).map((s) => <li key={s.id}><Link href={`/learn?s=${s.id}`}>{s.code} {s.name}</Link>{s.backlog && <> <span className="badge warn">backlog</span></>}</li>)}</ul>
+          <SubjectTiles subjects={subs.slice(0, 4)} />
           {!subs.length && <p className="muted">No subjects are assigned yet.</p>}
         </section>
         <section className="card feature-card tone-teal entry-rise" style={{ animationDelay: '.15s' }}>
@@ -81,6 +84,23 @@ export default async function Overview() {
           <Link href="/jobs">Explore opportunities →</Link>
         </section>
       </div>
+      <div className="section-head"><h2>Placement readiness</h2><Link href="/prep">Open my learning path →</Link></div>
+      {prep.path && ready ? (
+        <div className="split">
+          <ReadinessCard path={prep.path} r={ready} />
+          <section className="card tone-amber">
+            <h2>Your learning path: next steps</h2>
+            <PlanSteps steps={trainingPlan(prep.path, prep, ready)} limit={3} />
+            <p className="row actions-row"><Link className="btn" href="/prep/quiz">Take a quiz</Link><Link className="btn secondary" href="/prep">See the full course</Link></p>
+          </section>
+        </div>
+      ) : (
+        <section className="card tone-violet">
+          <h2>Choose your target role</h2>
+          <p className="muted">Get a course, aptitude, communication and coding practice matched to the role, and a job readiness score built from your own results.</p>
+          <Link className="btn" href="/prep">Start my learning path</Link>
+        </section>
+      )}
     </>
   );
 }

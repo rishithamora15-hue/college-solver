@@ -32,7 +32,7 @@ export async function getRun(c: Db, a: Actor, id: string) {
   const r = await one(c, `select id, kind, state, result, error, provider, model_id, prompt_version, model_calls, tool_calls, input_tokens, output_tokens, created_at, updated_at
     from agent_runs where college_id = $1 and id = $2 and actor_user_id = $3`, [a.collegeId, id, a.userId]);
   if (!r) throw notFound();
-  return { ...r, live_ai: r.provider === 'anthropic', retry_after_s: ['completed', 'failed', 'cancelled'].includes(r.state) ? null : 2 };
+  return { ...r, live_ai: r.provider === 'anthropic' || r.provider === 'gemini', retry_after_s: ['completed', 'failed', 'cancelled'].includes(r.state) ? null : 2 };
 }
 
 export async function cancelRun(c: Db, a: Actor, id: string) {
@@ -113,6 +113,7 @@ export async function executeRun(job: Job, signal: AbortSignal) {
       extra.draft_id = d.id;
     }
     if (run.kind === 'tutor') extra.sources = tools.context.sources.map(({ text, ...s }: any) => s);
+    if (run.kind === 'coach') extra.modules = tools.context.modules;
     if (run.kind === 'career') Object.assign(extra, { gaps: tools.context.gaps, matched: tools.context.matched, resume_version: tools.context.resume_version, readiness: 'unassessed' });
     await c.query(`update agent_runs set state = 'completed', result = $2, updated_at = now() where id = $1`, [runId, JSON.stringify({ ...result, ...extra, evidence: tools.evidence })]);
   }, 'succeeded');

@@ -31,10 +31,17 @@ export default async function Students({ searchParams }: { searchParams: Promise
           </table></div>
         )}
       </section>
-      <div className="split">
-        <section className="card tone-violet"><h2>Add a student</h2><AddStudent branches={branches} /></section>
-        <section className="card tone-teal"><h2>Import from Excel</h2><BulkImport /></section>
-      </div>
+      {!branches.length ? (
+        <section className="card tone-amber">
+          <h2>Add a branch first</h2>
+          <p>Every student belongs to a branch and follows its syllabus. <Link href="/admin/setup?tab=syllabus">Add your branches in College setup</Link>, then come back to add students.</p>
+        </section>
+      ) : (
+        <div className="split">
+          <section className="card tone-violet"><h2>Add a student</h2><AddStudent branches={branches} /></section>
+          <section className="card tone-teal"><h2>Import from Excel</h2><BulkImport /></section>
+        </div>
+      )}
     </>
   );
 }

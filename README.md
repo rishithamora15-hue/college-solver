@@ -4,11 +4,11 @@ One product, four connected modules, one student identity. This kit consolidates
 
 **Your constraints:** solo developer; Tuesday afternoon, assumed **6 October 2026, 14:00 IST**. Planning began around 00:32 IST on 5 October: approximately 37.5 elapsed hours remain. The exact afternoon cutoff needs confirmation; 14:00 is the planning assumption.
 
-**Deliverable status (5 Oct 14:40 IST):** the application is built and verified **locally** on synthetic data. Evidence is in [RELEASE-EVIDENCE.md](docs/RELEASE-EVIDENCE.md) and next steps are in [HANDOFF.md](HANDOFF.md). The app is **not deployed**. Live AI and Supabase auth are **untested** because no credentials were supplied.
+**Deliverable status (6 Oct):** the application runs on real data entered through the app (local Postgres or Supabase), verified by automated tests on fixture data. Evidence is in [RELEASE-EVIDENCE.md](docs/RELEASE-EVIDENCE.md) and next steps are in [HANDOFF.md](HANDOFF.md). The app is **not deployed**. Live AI and Supabase auth are **untested** because no credentials were supplied.
 
 ## Run locally (Node 22)
 
-On Windows PowerShell, run `./run.cmd`. It launches [run.sh](run.sh) through Git Bash (plain `bash` in PowerShell may start WSL, where Node is not installed). The launcher installs dependencies when missing, creates a local demo `.env` when missing, starts the embedded database, migrates/seeds it, and runs the worker and website together. Press Ctrl+C to stop. No external database or AI account is needed. A newly created `.env` uses clearly labeled mock AI; an existing `.env` keeps your settings.
+On Windows PowerShell, run `./run.cmd`. It launches [run.sh](run.sh) through Git Bash (plain `bash` in PowerShell may start WSL, where Node is not installed). The launcher installs dependencies when missing, creates a `.env` when missing, starts the embedded database (or uses Supabase when `DATABASE_URL` points there), applies migrations, and runs the worker and website together. Press Ctrl+C to stop. A newly created `.env` uses clearly labeled mock AI; an existing `.env` keeps your settings.
 
 ### Sign in
 
@@ -24,18 +24,16 @@ The sign-in page has two choices only: **Student** and **Faculty & Staff**.
 | Administration office | Students (add one, Excel/CSV import, edit class/CGPA) · fees per class or student, payments with receipts, scholarship credits · document verification · certificate and leave approvals · teachers and timetable · notices to a student, a class or the whole college · complaints · Excel reports |
 | Placement cell | Post drives with eligibility rules (CGPA, backlogs, branch) · who applied / opened but did not apply / has not looked · reminders · interview rounds · statistics and Excel export |
 
-Synthetic seed accounts:
+### Real data: first run
 
-| Who | Email | Password |
-|---|---|---|
-| Student Asha | `asha@college-a.example` | `22A91A0501` |
-| Student Ravi | `ravi@college-a.example` | `22A91A0502` |
-| Administration office | `admin@college-a.example` | `AdminA@2026` |
-| Placement cell | `placement@college-a.example` | `PlaceA@2026` |
-| Faculty (DBMS) | `kavya@college-a.example` | `FacultyA@2026` |
-| Faculty (Data Structures) | `arjun@college-a.example` | `FacultyB@2026` |
+The app starts **empty**. There are no demo accounts. Do this once per college:
 
-Assign real credentials with `npm run user:add -- admin <email> <password> "<name>"` (or `placement`, `faculty`, or `student <college email> <roll number>` for an existing student row). Students are easier to add from **Students** in the admin portal (one at a time or from a spreadsheet). Set `COLLEGE_ID` when there is more than one college.
+1. **Database.** Local: leave `DATABASE_URL` as in `.env.example`. Supabase: put the **Session pooler** connection string in `DATABASE_URL`, download the CA certificate (Supabase → Database settings → SSL configuration) and set `DATABASE_CA_CERT` to its path. `run.cmd` then uses Supabase instead of the local database.
+2. **College and first administrator.** `npm run setup -- "<College name>" <admin email> <password> "<Admin name>"` (password: 10+ characters).
+3. **Sign in** as that administrator (Faculty & Staff) and open **College setup**. Follow its *Getting started* list: branches and syllabus, faculty and placement accounts, students (one by one or from a spreadsheet), timetable, fees and scholarship schemes.
+4. Students sign in with their college email and their roll number as the first password.
+
+The fictional accounts in `scripts/seed.ts` exist only for the automated tests (`npm test`, `npm run e2e`), which use their own throwaway databases. The seed script refuses any database that is not on this machine.
 
 ### Manual commands (optional)
 
@@ -43,7 +41,7 @@ Assign real credentials with `npm run user:add -- admin <email> <password> "<nam
 npm ci
 cp .env.example .env            # set SESSION_SECRET (32+ chars); AI_PROVIDER=fixture for the labeled mock
 npm run db:local                # terminal 1: PostgreSQL on :54329 (keep running)
-npm run db:migrate && npm run db:seed
+npm run db:migrate && npm run setup -- "<College>" <admin email> <password> "<Admin name>"
 npm run dev                     # terminal 2: web on http://localhost:3000 → /signin
 npm run worker                  # terminal 3: background worker (AI runs, notifications, reminders)
 npm test                        # DB-backed tests (own throwaway DB on :54330)

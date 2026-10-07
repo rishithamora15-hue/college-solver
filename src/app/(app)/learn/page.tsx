@@ -3,7 +3,7 @@ import { isUuid } from '@/server/http';
 import { pageActor, q, orNull } from '@/server/page';
 import { documentsFor, studentSubjects, subjectAccess, topics } from '@/server/learn';
 import { TutorClient } from './tutor';
-import { Empty, NotFound } from '../../ui';
+import { Empty, NotFound, SectionTabs, SubjectTiles } from '../../ui';
 
 export default async function Learn({ searchParams }: { searchParams: Promise<{ s?: string; t?: string; year?: string }> }) {
   const sp = await searchParams;
@@ -22,20 +22,18 @@ export default async function Learn({ searchParams }: { searchParams: Promise<{ 
   return (
     <>
       <span className="page-eyebrow">Academic workspace</span><h1>Learn with your syllabus.</h1>
-      <p className="page-lead">Choose your subject, including a backlog, and explore answers grounded in approved material.</p>
+      <p className="page-lead">Choose your subject, including a backlog, and ask the AI tutor. Answers come from your approved notes first, with the points to remember for exams.</p>
+      <SectionTabs section="academics" current="/learn" />
       <nav aria-label="Scope" className="muted">{meta ? `${meta.branch} / ${meta.regulation}` : ''}{selected && ` / Semester ${selected.semester} / ${selected.code} ${selected.name}`}{topic && ` / ${topic.name}`}</nav>
       <section className="card">
         <h2>Subjects</h2>
-        <ul className="subject-list">{subs.map((s) => (
-          <li key={s.id}><Link href={`/learn?s=${s.id}`} aria-current={s.id === selected?.id ? 'page' : undefined}>Sem {s.semester} · {s.code} {s.name}</Link>
-            {s.backlog && <> <span className="badge warn">backlog</span></>}{s.is_current && <> <span className="badge info">current</span></>}</li>
-        ))}</ul>
+        <SubjectTiles subjects={subs} selected={selected?.id} />
       </section>
       {selected && (
         <>
           <section className="card">
             <h2>Topics</h2>
-            <p>{tops.map((t) => <Link key={t.id} href={`/learn?s=${selected.id}&t=${t.id}`} style={{ marginRight: 12 }} aria-current={t.id === topic?.id ? 'page' : undefined}>{t.name}</Link>)}</p>
+            <div className="chips">{tops.map((t) => <Link key={t.id} className={`chip${t.id === topic?.id ? ' on' : ''}`} href={`/learn?s=${selected.id}&t=${t.id}`} aria-current={t.id === topic?.id ? 'page' : undefined}>{t.name}</Link>)}</div>
           </section>
           <section className="card">
             <h2>Ask the tutor</h2>

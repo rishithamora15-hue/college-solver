@@ -1,7 +1,8 @@
-import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { env } from './env';
 import { many, one, tx } from './db';
+import { AppError } from './errors';
 
 /** student; admin = administration office; placement = placement cell; faculty = teaching staff (attendance, marks, notes). */
 export type Role = 'student' | 'admin' | 'placement' | 'faculty';
@@ -73,9 +74,39 @@ export async function localSignIn(email: string, password: string): Promise<stri
   return (await checkPassword(password, u?.password_hash)) ? u!.auth_subject : null;
 }
 
+const supabase = async (key: string) =>
+  (await import('@supabase/supabase-js')).createClient(env().SUPABASE_URL!, key, { auth: { persistSession: false, autoRefreshToken: false } });
+
 export async function supabasePasswordSignIn(email: string, password: string): Promise<string | null> {
-  const { createClient } = await import('@supabase/supabase-js');
-  const sb = createClient(env().SUPABASE_URL!, env().SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  const { data, error } = await (await supabase(env().SUPABASE_ANON_KEY!)).auth.signInWithPassword({ email, password });
   return error || !data.user ? null : data.user.id;
+}
+
+/**
+ * Every new sign-in goes through here. Local: password hashed into app_users. Supabase: the account is created in Supabase Auth
+ * (email pre-confirmed, exactly the email and password given); an existing Supabase user is linked only if that password signs in.
+ * Call `undo` if saving the app_users row fails, so no orphan Supabase user is left behind.
+ */
+export async function createLogin(email: string, password: string): Promise<{ subject: string; hash: string | null; undo: () => Promise<void> }> {
+  if (env().AUTH_MODE !== 'supabase') return { subject: 'local:' + randomUUID(), hash: await hashPassword(password), undo: async () => {} };
+  const admin = (await supabase(env().SUPABASE_SERVICE_ROLE_KEY!)).auth.admin;
+  const { data, error } = await admin.createUser({ email, password, email_confirm: true });
+  if (data?.user) { const id = data.user.id; return { subject: id, hash: null, undo: async () => { await admin.deleteUser(id); } }; }
+  if (error?.code === 'email_exists') {
+    const id = await supabasePasswordSignIn(email, password);
+    if (id) return { subject: id, hash: null, undo: async () => {} };
+    throw new AppError(409, 'exists', `${email} already exists in Supabase Auth with a different password`);
+  }
+  throw new AppError(400, 'auth_provider', `Supabase Auth did not accept ${email}: ${error?.message ?? 'unknown error'}`);
+}
+
+/** Checks a user's current password and, if `next` is given, replaces it (wherever the account lives). */
+export async function verifyLoginPassword(u: { email: string; auth_subject: string; password_hash: string | null }, pw: string) {
+  return env().AUTH_MODE === 'supabase' ? (await supabasePasswordSignIn(u.email, pw)) === u.auth_subject : checkPassword(pw, u.password_hash);
+}
+export async function setLoginPassword(subject: string, pw: string): Promise<string | null> {
+  if (env().AUTH_MODE !== 'supabase') return hashPassword(pw);
+  const { error } = await (await supabase(env().SUPABASE_SERVICE_ROLE_KEY!)).auth.admin.updateUserById(subject, { password: pw });
+  if (error) throw new AppError(400, 'auth_provider', `Supabase Auth did not accept the new password: ${error.message}`);
+  return null;
 }

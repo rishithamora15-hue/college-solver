@@ -1,7 +1,10 @@
-// SYNTHETIC data only. All people, colleges, amounts and job listings are fictional.
+// TEST FIXTURES ONLY. Fictional people, colleges, amounts and listings for the automated test databases (tests/, e2e/).
+// Real deployments never run this: it refuses any database that is not on this machine. Real data is entered in the app
+// (see scripts/setup.ts and the College setup page).
 import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { hashPassword } from '../src/server/auth';
+import { isLocalDb } from '../src/server/pgconn';
 
 const u = (n: number) => `00000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
 export const ID = {
@@ -35,6 +38,7 @@ const days = (d: number) => new Date(Date.now() + d * 86400000).toISOString();
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 export async function seed(url = process.env.DATABASE_URL) {
+  if (!url || !isLocalDb(url)) throw new Error('seed: test fixtures are only for a local test database, refusing ' + (url ? new URL(url).hostname : 'no DATABASE_URL'));
   const c = new pg.Client({ connectionString: url });
   await c.connect();
   const q = (sql: string, p: unknown[] = []) => c.query(sql, p);

@@ -2,8 +2,10 @@
 // Interactive pieces. All mutations go through /api/v1 with JSON + Idempotency-Key where required.
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import type { ClientQuestion } from '@/server/prep';
 
+type RunKind = 'scholarship' | 'tutor' | 'career' | 'coach';
 type ApiErr = { code: string; message: string; request_id: string; fields?: string[]; retry_after_s?: number; problems?: string[] };
 export async function api<T = any>(path: string, method = 'POST', body?: unknown, idemKey?: string): Promise<T> {
   const res = await fetch(path, {
@@ -50,11 +52,18 @@ const ICONS: Record<string, string> = {
   students: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M2 21c0-4 3-6 7-6s7 2 7 6 M17 11a3 3 0 1 0 0-6 M22 21c0-3-2-5-5-5',
   notices: 'M3 11v2l13 5V6z M16 8a4 4 0 0 1 0 8 M6 13l1 6h3l-1-5',
   stats: 'M4 20V10 M10 20V4 M16 20v-7 M22 20H2',
+  setup: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19 12h2 M3 12h2 M12 3v2 M12 19v2 M17 7l1.5-1.5 M5.5 18.5 7 17 M17 17l1.5 1.5 M5.5 5.5 7 7',
+  prep: 'M5 21V4 M5 4h12l-2.5 4L17 12H5',
+  aptitude: 'M6 3h12v18H6z M9 7h6 M9 11h.01 M12 11h.01 M15 11h.01 M9 15h.01 M12 15h.01 M15 15h.01',
+  communication: 'M3 5h12v9H8l-5 4z M18 9h3v10l-4-3h-6v-2',
+  coding: 'M8 7l-5 5 5 5 M16 7l5 5-5 5 M14 4l-4 16',
 };
 
-export function NavLinks({ items }: { items: [string, string][] }) {
+/** An entry is active when the path is under its href or any of its extra paths; the longest match wins. */
+export function NavLinks({ items }: { items: [string, string, string[]?][] }) {
   const path = usePathname();
-  const active = items.map(([h]) => h).filter((h) => (h === '/' ? path === '/' : path === h || path.startsWith(h + '/'))).sort((x, y) => y.length - x.length)[0];
+  const hit = (h: string) => (h === '/' ? path === '/' : path === h || path.startsWith(h + '/'));
+  const active = items.flatMap(([href, , more = []]) => [href, ...more].filter(hit).map((m) => [href, m.length] as const)).sort((x, y) => y[1] - x[1])[0]?.[0];
   return <>{items.map(([href, label]) => {
     const tone = href.split('/').pop() || 'home';
     return (
@@ -203,7 +212,7 @@ export function NoticeCenter({ initial }: { initial: Notice[] }) {
 }
 
 /** Polls a durable run (bounded, honours retry hint). Survives reloads because state lives in the database. */
-export function RunView({ runId, render }: { runId: string; render: 'scholarship' | 'tutor' | 'career' }) {
+export function RunView({ runId, render }: { runId: string; render: RunKind }) {
   const [run, setRun] = useState<any>(null);
   const [err, setErr] = useState<ApiErr | null>(null);
   useEffect(() => {
@@ -247,13 +256,31 @@ function RunResult({ kind, r }: { kind: string; r: any }) {
     const idx = new Map<string, number>((r.sources ?? []).map((s: any, i: number) => [s.id, i + 1]));
     return (
       <>
-        {r.abstained && <div className="banner warn" role="status">Not supported by approved sources.</div>}
+        {r.abstained && <div className="banner warn" role="status">The tutor did not answer this from your approved notes.</div>}
+        {r.from_notes === false && <div className="banner info" role="note"><strong>Not found in your notes.</strong> This is a general explanation from the AI, so check it against your faculty&apos;s material.</div>}
+        {r.key_points?.length > 0 && <div className="key-points"><h3>Points to remember</h3><ul>{r.key_points.map((p: string, i: number) => <li key={i}>{p}</li>)}</ul></div>}
         <Text t={r.answer} />
         {r.claims?.length > 0 && <><h3>Cited points</h3><ul>{r.claims.map((c: any, i: number) => <li key={i}>{c.text} {c.source_ids.map((s: string) => <sup key={s}>[{idx.get(s) ?? '?'}]</sup>)}</li>)}</ul></>}
         {r.supplemental && <><h3>Supplemental (general knowledge, not from your sources)</h3><Text t={r.supplemental} /></>}
         {r.sources?.length > 0 && <><h3>Sources</h3><ol>{r.sources.map((s: any) => <li key={s.id}>{s.title} · {s.revision} · page {s.page} · {s.section} · <a href={`/api/v1/documents/${s.document_id}/download`}>open</a></li>)}</ol></>}
         {r.uncertainties?.length > 0 && <p className="muted">Uncertain: {r.uncertainties.join(' ')}</p>}
         <p className="muted">Code shown is illustrative and was not executed.</p>
+      </>
+    );
+  }
+  if (kind === 'coach') {
+    const mod = (id: string) => r.modules?.find((m: any) => m.id === id);
+    const at = (id: string) => (mod(id) ? <Link href={mod(id).href}>{mod(id).title}</Link> : id);
+    return (
+      <>
+        <p><strong>{r.summary}</strong></p>
+        <div className="coach-grid">
+          {r.strengths?.length > 0 && <div><h3>What you did well</h3><ul>{r.strengths.map((x: any, i: number) => <li key={i}>{at(x.module_id)}: {x.text}</li>)}</ul></div>}
+          {r.gaps?.length > 0 && <div><h3>Where you are lacking</h3><ul>{r.gaps.map((x: any, i: number) => <li key={i}>{at(x.module_id)}: {x.text}</li>)}</ul></div>}
+        </div>
+        <h3>What to learn next</h3>
+        <ol>{r.next_steps?.map((x: any, i: number) => <li key={i}>{x.action} ({at(x.module_id)})</li>)}</ol>
+        <p className="banner info" role="note">{r.encouragement}</p>
       </>
     );
   }
@@ -286,7 +313,7 @@ function RunResult({ kind, r }: { kind: string; r: any }) {
 }
 
 /** Starts an AI run through the deterministic router, then shows its durable state. */
-export function StartRun({ screen, input, label, render, children }: { screen: string; input: Record<string, unknown>; label: string; render: 'scholarship' | 'tutor' | 'career'; children?: ReactNode }) {
+export function StartRun({ screen, input, label, render, children }: { screen: string; input: Record<string, unknown>; label: string; render: RunKind; children?: ReactNode }) {
   const [runId, setRunId] = useState<string | null>(null);
   const [err, setErr] = useState<ApiErr | null>(null);
   const [busy, setBusy] = useState(false);
@@ -412,14 +439,22 @@ export function ResumeEditor({ initial }: { initial: { section: string; text: st
   );
 }
 
-export function JdAnalysis({ resumeVersionId }: { resumeVersionId: string }) {
+/** Compare the confirmed resume with an open listing, or with any pasted job description. */
+export function JdAnalysis({ resumeVersionId, jobs = [] }: { resumeVersionId: string; jobs?: { id: string; label: string }[] }) {
   const [jd, setJd] = useState('');
+  const [job, setJob] = useState('');
   return (
     <>
-      <label htmlFor="jd">Paste a job description</label>
-      <textarea id="jd" rows={6} maxLength={8000} value={jd} onChange={(e) => setJd(e.target.value)} />
+      {jobs.length > 0 && <>
+        <label htmlFor="jd-job">Pick an open role</label>
+        <select id="jd-job" value={job} onChange={(e) => setJob(e.target.value)}>
+          <option value="">Paste a job description instead</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.label}</option>)}
+        </select>
+      </>}
+      {!job && <><label htmlFor="jd">Paste a job description</label>
+        <textarea id="jd" rows={6} maxLength={8000} value={jd} onChange={(e) => setJd(e.target.value)} /></>}
       <div style={{ marginTop: 8 }}>
-        <StartRun screen="career" input={{ resume_version_id: resumeVersionId, jd_text: jd }} label="Analyse against my resume" render="career" />
+        <StartRun key={job} screen="career" input={job ? { resume_version_id: resumeVersionId, job_id: job } : { resume_version_id: resumeVersionId, jd_text: jd }} label="Analyse against my resume" render="career" />
       </div>
     </>
   );
@@ -881,7 +916,7 @@ export function AddStudent({ branches }: { branches: string[] }) {
         <div><label htmlFor="s-phone">Mobile (optional)</label><input id="s-phone" name="phone" type="tel" /></div>
       </div>
       <div className="row">
-        <div><label htmlFor="s-branch">Branch</label><select id="s-branch" name="branch">{branches.map((b) => <option key={b}>{b}</option>)}</select></div>
+        <div><label htmlFor="s-branch">Branch</label><select id="s-branch" name="branch" required>{branches.map((b) => <option key={b}>{b}</option>)}</select></div>
         <div><label htmlFor="s-sem">Semester</label><select id="s-sem" name="semester">{[1, 2, 3, 4, 5, 6, 7, 8].map((n) => <option key={n}>{n}</option>)}</select></div>
         <div><label htmlFor="s-sec">Section</label><input id="s-sec" name="section" defaultValue="A" maxLength={1} pattern="[A-Za-z]" required /></div>
       </div>
@@ -1137,5 +1172,153 @@ export function StageSelect({ jobId, studentId, stage }: { jobId: string; studen
       </select>
       {err && <span role="alert" className="bad small-note">{err.message}</span>}
     </span>
+  );
+}
+
+// ---- Placement preparation (learning path, practice)
+
+export function PathPicker({ current, paths }: { current: string | null; paths: { id: string; label: string; blurb: string }[] }) {
+  const { err, busy, run } = useAction();
+  return (
+    <>
+      <ErrorBox err={err} />
+      <div className="path-grid" role="group" aria-label="Target role">
+        {paths.map((p) => (
+          <button key={p.id} type="button" className="path-option" aria-pressed={p.id === current} disabled={busy}
+            onClick={() => run(async () => { await api('/api/v1/prep/path', 'POST', { path: p.id }); })}>
+            <strong>{p.label}</strong><small>{p.blurb}</small>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Native <details> whose open state survives server refreshes (the initial value only comes from the server). */
+export function Fold({ open, id, className, summary, children }: { open: boolean; id: string; className: string; summary: ReactNode; children: ReactNode }) {
+  const [o, setO] = useState(open);
+  return <details id={id} className={className} open={o} onToggle={(e) => setO(e.currentTarget.open)}><summary>{summary}</summary>{children}</details>;
+}
+
+export function MarkRead({ moduleId, read }: { moduleId: string; read: boolean }) {
+  const { err, busy, run } = useAction();
+  if (read) return <p><span className="badge ok">Notes read</span></p>;
+  return (
+    <p>
+      <ErrorBox err={err} />
+      <button type="button" className="secondary small" disabled={busy} onClick={() => run(async () => { await api('/api/v1/prep/progress', 'POST', { module_id: moduleId }); })}>Mark notes as read</button>
+    </p>
+  );
+}
+
+/** Multiple choice graded by the server. The answer and explanation arrive only after the student answers. */
+export function PracticeQuestion({ n, q }: { n: number; q: ClientQuestion }) {
+  const [pick, setPick] = useState<number | null>(q.result?.choice ?? null);
+  const [res, setRes] = useState<(NonNullable<ClientQuestion['result']> & { recorded?: boolean }) | null>(q.result);
+  const [err, setErr] = useState<ApiErr | null>(null);
+  const [busy, setBusy] = useState(false);
+  const r = useRouter();
+  const opt = (i: number) => `q-option${res && i === res.answer ? ' is-answer' : ''}${res && i === res.choice && !res.correct ? ' is-wrong' : ''}`;
+  return (
+    <fieldset className={`practice-q${res ? (res.correct ? ' right' : ' wrong') : ''}`}>
+      <legend><span className="q-num">{n}</span> {q.q}</legend>
+      <span className="badge neutral">{q.round}</span>
+      {q.code && <pre><code>{q.code}</code></pre>}
+      <div className="q-options">
+        {q.options.map((o, i) => (
+          <label key={i} className={opt(i)}>
+            <input type="radio" name={q.id} checked={pick === i} disabled={!!res || busy} onChange={() => setPick(i)} /><span>{o}</span>
+          </label>
+        ))}
+      </div>
+      <ErrorBox err={err} />
+      {res ? (
+        <div role="status" className="q-result">
+          <strong className={res.correct ? 'ok' : 'bad'}>{res.correct ? 'Correct.' : `Not quite. Answer: ${q.options[res.answer]}`}</strong>
+          <p>{res.why}</p>
+          {res.recorded === false && <p className="muted small">You had already answered this question; your first answer is the one that counts.</p>}
+        </div>
+      ) : (
+        <button type="button" className="small" disabled={pick === null || busy} onClick={async () => {
+          setBusy(true); setErr(null);
+          try { const x = await api('/api/v1/prep/answers', 'POST', { question_id: q.id, choice: pick }); setRes(x); setPick(x.choice); r.refresh(); } catch (e) { setErr(e as ApiErr); } finally { setBusy(false); }
+        }}>Check answer</button>
+      )}
+    </fieldset>
+  );
+}
+
+type QuizQ = ClientQuestion;
+/** One quiz paper. Answers stay in the browser until submit; the server grades the whole paper once. */
+export function QuizRunner({ id, questions }: { id: string; questions: QuizQ[] }) {
+  const [picks, setPicks] = useState<Record<string, number>>({});
+  const { err, busy, run } = useAction();
+  const left = questions.length - Object.keys(picks).length;
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); run(async () => { await api(`/api/v1/prep/quizzes/${id}`, 'POST', { answers: picks }); }); }}>
+      {questions.map((q, n) => (
+        <fieldset className="practice-q" key={q.id}>
+          <legend><span className="q-num">{n + 1}</span> {q.q}</legend>
+          <span className="badge neutral">{q.round}</span>
+          {q.code && <pre><code>{q.code}</code></pre>}
+          <div className="q-options">
+            {q.options.map((o, i) => (
+              <label key={i} className="q-option">
+                <input type="radio" name={q.id} checked={picks[q.id] === i} disabled={busy} onChange={() => setPicks({ ...picks, [q.id]: i })} /><span>{o}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ))}
+      <div className="quiz-bar">
+        <span role="status">{left ? `${questions.length - left} of ${questions.length} answered · unanswered questions count as wrong` : `All ${questions.length} answered`}</span>
+        <ErrorBox err={err} />
+        <button disabled={busy}>{busy ? 'Grading…' : 'Submit quiz'}</button>
+      </div>
+    </form>
+  );
+}
+
+export function StartQuiz({ track, label, secondary }: { track: string; label: string; secondary?: boolean }) {
+  const { err, busy, run } = useAction();
+  const r = useRouter();
+  return (
+    <>
+      <ErrorBox err={err} />
+      <button type="button" className={secondary ? 'secondary' : undefined} disabled={busy}
+        onClick={() => run(async () => { const q = await api('/api/v1/prep/quizzes', 'POST', { track }); r.push(`/prep/quiz/${q.id}`); })}>{label}</button>
+    </>
+  );
+}
+
+// ---- Administration office: college setup
+
+export type SetupField = { name: string; label: string; type?: 'text' | 'textarea' | 'select' | 'email' | 'password' | 'number'; options?: [string, string][]; placeholder?: string; hint?: string; required?: boolean };
+
+/** Small form for one setup record (POST /api/v1/admin/setup). `extra` carries fixed ids; field values go as strings and the server validates. */
+export function QuickForm({ kind, extra = {}, fields = [], submit, done, compact }: { kind: string; extra?: Record<string, string>; fields?: SetupField[]; submit: string; done: string; compact?: boolean }) {
+  const { err, msg, busy, run } = useAction();
+  const uid = useId();
+  return (
+    <form className={compact ? 'quick-form compact' : 'quick-form'} onSubmit={(e) => {
+      e.preventDefault();
+      const form = e.currentTarget, values = Object.fromEntries(new FormData(form));
+      run(async () => { await api('/api/v1/admin/setup', 'POST', { kind, ...extra, ...values }); form.reset(); return done; });
+    }}>
+      <ErrorBox err={err} />
+      {fields.length > 0 && <div className="form-grid">{fields.map((f) => {
+        const id = `${uid}-${f.name}`;
+        const common = { id, name: f.name, required: f.required ?? true, placeholder: f.placeholder, 'aria-describedby': f.hint ? `${id}-hint` : undefined };
+        return (
+          <div key={f.name} className={f.type === 'textarea' ? 'span-all' : undefined}>
+            <label htmlFor={id}>{f.label}</label>
+            {f.type === 'textarea' ? <textarea rows={3} {...common} /> : f.type === 'select' ? <select {...common}>{f.options!.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+              : <input type={f.type ?? 'text'} {...common} />}
+            {f.hint && <small id={`${id}-hint`} className="muted">{f.hint}</small>}
+          </div>
+        );
+      })}</div>}
+      <div className="quick-form-actions"><button className={compact ? 'secondary small' : undefined} disabled={busy}>{submit}</button><Msg msg={msg} /></div>
+    </form>
   );
 }

@@ -246,25 +246,39 @@ export async function classNotes(c: Db, a: Actor, k: Klass) {
     order by kind, exam_year desc nulls last, title`, [a.collegeId, k.curriculum_id, k.subject_id]);
 }
 
-/** Text notes are split into sections the AI tutor can cite; PDFs are download-only. */
+/** Splits text into tutor-citable chunks of about 1200 characters, on paragraph and then sentence boundaries. */
+export function chunkText(text: string) {
+  const units = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).flatMap((p) => (p.length <= 1200 ? [p] : p.split(/(?<=[.?!])\s+/)));
+  const parts: string[] = [];
+  for (const u of units) {
+    if (parts.length && parts[parts.length - 1].length + u.length < 1200) parts[parts.length - 1] += '\n\n' + u;
+    else parts.push(u.slice(0, 4000));
+  }
+  return parts;
+}
+
+/** Text of each PDF page (untrusted input; the bundled pdf.js has no eval code path). Scanned, encrypted or broken PDFs give [] (download-only). */
+export async function pdfPages(bytes: Buffer): Promise<string[]> {
+  try {
+    const { extractText } = await import('unpdf');
+    return ((await extractText(new Uint8Array(bytes), { mergePages: false })).text as string[]).slice(0, 300);
+  } catch { return []; }
+}
+
+/** Text notes and text-based PDFs are split into sections the AI tutor can cite, with real page numbers for PDFs. */
 export async function addNote(c: Db, a: Actor, assignmentId: string, i: { title: string; kind: 'material' | 'paper'; exam_year: number | null; mime: string; bytes: Buffer }) {
   const k = await classFor(c, a, assignmentId, true);
   const id = randomUUID();
   await c.query(`insert into documents (id, college_id, curriculum_id, subject_id, kind, title, revision, exam_year, source, license, status, mime, bytes, content_hash)
     values ($1,$2,$3,$4,$5,$6,'rev-1',$7,$8,'College internal','published',$9,$10,$11)`,
   [id, a.collegeId, k.curriculum_id, k.subject_id, i.kind, i.title, i.exam_year, `Uploaded by ${a.displayName}`, i.mime, i.bytes, createHash('sha256').update(i.bytes).digest('hex')]);
-  if (i.mime === 'text/plain') {
-    const parts: string[] = [];
-    for (const para of i.bytes.toString('utf8').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)) {
-      if (parts.length && parts[parts.length - 1].length + para.length < 1200) parts[parts.length - 1] += '\n\n' + para;
-      else parts.push(para);
-    }
-    for (const [n, body] of parts.entries())
-      await c.query(`insert into document_chunks (college_id, document_id, curriculum_id, subject_id, page, section, body) values ($1,$2,$3,$4,$5,$6,$7)`,
-        [a.collegeId, id, k.curriculum_id, k.subject_id, n + 1, body.split('\n')[0].slice(0, 80), body]);
-  }
+  const chunks: [number, string][] = i.mime === 'text/plain' ? chunkText(i.bytes.toString('utf8')).map((b, n) => [n + 1, b])
+    : i.mime === 'application/pdf' ? (await pdfPages(i.bytes)).flatMap((t, p) => chunkText(t).map((b): [number, string] => [p + 1, b])) : [];
+  for (const [page, body] of chunks)
+    await c.query(`insert into document_chunks (college_id, document_id, curriculum_id, subject_id, page, section, body) values ($1,$2,$3,$4,$5,$6,$7)`,
+      [a.collegeId, id, k.curriculum_id, k.subject_id, page, body.split('\n')[0].slice(0, 80), body]);
   for (const s of await classStudents(c, a, k))
     await notify(c, a.collegeId, s.user_id, `note:${id}`, `New ${i.kind === 'paper' ? 'question paper' : 'notes'}: ${k.code} ${i.title}`, 'Open Learn to read or download it.', a.displayName);
   await audit(c, { collegeId: a.collegeId, actor: a.userId, action: 'note.upload', target: id, result: 'ok' });
-  return { id };
+  return { id, searchable_sections: chunks.length };
 }

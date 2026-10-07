@@ -40,6 +40,7 @@ test('learn: scoped tutor answer with sources, authorized download, paper filter
   await page.getByLabel('Your question').fill('What is normalization in databases?');
   await page.getByRole('button', { name: 'Ask', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sources' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Points to remember' })).toBeVisible();
   await page.screenshot({ path: '.data/ui-qa/final-desktop-tutor-result.png', fullPage: true, caret: 'initial' });
   await expect(page.getByText('Mock AI (fixture, not a real model)')).toBeVisible();
   const dl = await page.request.get(`/api/v1/documents/${ID.docDbms}/download`);

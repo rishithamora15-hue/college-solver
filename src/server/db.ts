@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { env } from './env';
+import { pgConn } from './pgconn';
 
 // int8 (bigint paise) -> number: exact up to 2^53 paise.
 pg.types.setTypeParser(20, Number);
@@ -12,7 +13,7 @@ export type Scope = { collegeId: string; userId?: string };
 let pool: pg.Pool | undefined;
 export function getPool() {
   if (!pool) {
-    pool = new pg.Pool({ connectionString: env().DATABASE_URL, max: 10, connectionTimeoutMillis: 5000 });
+    pool = new pg.Pool({ ...pgConn(env().DATABASE_URL), max: 10, connectionTimeoutMillis: 5000 });
     pool.on('error', (e) => console.error(JSON.stringify({ level: 'error', msg: 'pg_pool_error', err: e.message })));
   }
   return pool;

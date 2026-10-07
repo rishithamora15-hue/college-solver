@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { createLogin, setLoginPassword } from '../src/server/auth';
+import type { AppError } from '../src/server/errors';
 import { pgConn } from '../src/server/pgconn';
 
 const [role, email, password, name] = process.argv.slice(2);
@@ -24,8 +25,18 @@ try {
   const secret = role === 'student' ? password.trim().toUpperCase() : password;
   let user = (await c.query('select id, auth_subject from app_users where email = $1', [email.toLowerCase()])).rows[0];
   if (user) {
+    let hash: string | null;
+    try {
+      hash = await setLoginPassword(user.auth_subject, secret);
+    } catch (e) {
+      if ((e as AppError).code !== 'login_missing') throw e;
+      // Deleted in the Supabase dashboard: recreate the sign-in and point the existing user (and their data) at it.
+      login = await createLogin(email.toLowerCase(), secret);
+      await c.query('update app_users set auth_subject = $2 where id = $1', [user.id, login.subject]);
+      hash = login.hash;
+    }
     await c.query(`update app_users set password_hash = $2, display_name = coalesce(nullif($3, ''), display_name) where id = $1`,
-      [user.id, await setLoginPassword(user.auth_subject, secret), name ?? '']);
+      [user.id, hash, name ?? '']);
   } else {
     login = await createLogin(email.toLowerCase(), secret);
     user = (await c.query('insert into app_users (id, auth_subject, email, display_name, password_hash) values ($1, $2, $3, $4, $5) returning id',

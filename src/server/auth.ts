@@ -107,6 +107,7 @@ export async function verifyLoginPassword(u: { email: string; auth_subject: stri
 export async function setLoginPassword(subject: string, pw: string): Promise<string | null> {
   if (env().AUTH_MODE !== 'supabase') return hashPassword(pw);
   const { error } = await (await supabase(env().SUPABASE_SERVICE_ROLE_KEY!)).auth.admin.updateUserById(subject, { password: pw });
+  if (error?.code === 'user_not_found') throw new AppError(404, 'login_missing', 'This sign-in was deleted from Supabase Auth');
   if (error) throw new AppError(400, 'auth_provider', `Supabase Auth did not accept the new password: ${error.message}`);
   return null;
 }

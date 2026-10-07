@@ -6,7 +6,9 @@ import type { Actor } from '../src/server/auth';
 import { idempotent } from '../src/server/http';
 import { createRun, cancelRun, getRun } from '../src/server/runs';
 import { addEvent, getDraft, manualDraft, submitComplaint } from '../src/server/complaints';
-import { saveResumeVersion, extractPreview } from '../src/server/career';
+import { atsReport, atsScore, extractPreview, priority, saveResumeVersion } from '../src/server/career';
+import { pdfPages } from '../src/server/academics';
+import { tinyPdf } from './pdf-fixture';
 import { track } from '../src/server/jobs';
 import { reminderSweep } from '../src/server/notify';
 import { SPECIALISTS, route } from '../src/server/specialists';
@@ -38,7 +40,9 @@ describe('scholarship investigation -> reviewed complaint -> staff -> verificati
 
     const draft = await tx((c) => getDraft(c, asha, ID.ashaStudent, run.result.draft_id), S(asha));
     expect(draft.department_id).toBe(ID.deptSch);
-    const req = { draft_id: draft.id, subject: draft.subject, body: draft.body + '\nEdited by student.', case_version: 1 };
+    // Current version, not 1: portals.test.ts may have updated this case first (files run in varying order).
+    const [{ version: case_version }] = await asOwner('select version from scholarship_cases where id = $1', [ID.caseAsha]);
+    const req = { draft_id: draft.id, subject: draft.subject, body: draft.body + '\nEdited by student.', case_version };
     const submit = (key: string, r = req) => tx((c) => idempotent(c, asha, 'complaint.submit', key, r, () => submitComplaint(c, asha, ID.ashaStudent, r)), S(asha));
     const [a, b] = await Promise.all([submit('k1'), submit('k1')]); // concurrent duplicate
     expect(a.receipt_no).toBe(b.receipt_no);
@@ -154,6 +158,35 @@ describe('career', () => {
     const job = await tx((c) => createRun(c, asha, ID.ashaStudent, 'career', { resume_version_id: v.id, job_id: '00000000-0000-4000-8000-000000000301' }), S(asha));
     await drain();
     expect((await tx((c) => getRun(c, asha, job.run_id), S(asha))).result.evidence).toContain('job:00000000-0000-4000-8000-000000000301');
+  });
+
+  it('PDF resume: text read line by line, real headings recognised, labels stripped, personal details dropped', async () => {
+    const pdf = tinyPdf(['Asha Rao\nCareer Objective\nTo build reliable software.\nTechnical Skills\nLanguages: Python, JS, SQL\nTools: Git, Docker',
+      'Academic Projects\n- Library app using React and Node.js\nEducation\nB.Tech CSE, 8.1 CGPA\nPersonal Details\nDOB: 01-01-2004']);
+    expect(extractPreview((await pdfPages(pdf)).join('\n'))).toEqual([
+      { section: 'summary', text: 'Asha Rao' }, { section: 'summary', text: 'To build reliable software.' },
+      ...['Python', 'JS', 'SQL', 'Git', 'Docker'].map((text) => ({ section: 'skill', text })),
+      { section: 'project', text: 'Library app using React and Node.js' }, { section: 'education', text: 'B.Tech CSE, 8.1 CGPA' },
+    ]);
+    expect(extractPreview('Skills\nCommunication skills, Leadership')).toEqual([{ section: 'skill', text: 'Communication skills' }, { section: 'skill', text: 'Leadership' }]);
+  });
+
+  it('ATS score follows the published formula; roles ranked eligible-first; skills to learn ordered by points they add', () => {
+    const facts = [{ section: 'education', text: 'B.Tech CSE' }, { section: 'skill', text: 'Python' }, { section: 'skill', text: 'SQL' },
+      { section: 'skill', text: 'Git' }, { section: 'project', text: 'Library app in React' }];
+    const a = atsScore('Needs Python, SQL, Docker and AWS', facts)!;
+    expect([a.score, a.missing]).toEqual([35 + 30, ['aws', 'docker']]); // 70 x 2/4 + all three sections
+    expect(atsScore('Great attitude and punctuality', facts)).toBeNull(); // no recognised skill: no score
+    expect(atsScore('JavaScript and Node.js', [{ section: 'skill', text: 'JS' }, { section: 'skill', text: 'NodeJS' }])!.score).toBe(70); // aliases; no sections
+    expect([priority(70), priority(69), priority(40), priority(39)]).toEqual(['High', 'Medium', 'Medium', 'Low']);
+    const r = atsReport([
+      { role: 'Data Analyst', company: 'X', jd: 'SQL, Excel, Docker', why: [] },
+      { role: 'Research Intern', company: 'Z', jd: 'Python, Docker, AWS', why: ['CGPA 9+ required'] },
+      { role: 'Backend Developer', company: 'Y', jd: 'Python, SQL, Docker', why: [] },
+      { role: 'Office Assistant', company: 'W', jd: 'Punctual and polite', why: [] },
+    ], facts);
+    expect(r.roles.map((x) => [x.job.company, x.ats?.score ?? null])).toEqual([['Y', 77], ['X', 53], ['W', null], ['Z', 53]]);
+    expect(r.learn.map((l) => [l.skill, l.points, l.roles.length])).toEqual([['docker', 47, 2], ['excel', 23, 1]]); // ineligible role ignored
   });
 
   it('verifier rejects invented numbers, skills and readiness scores', () => {

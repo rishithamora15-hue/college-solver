@@ -2,6 +2,7 @@
 import { expect, test } from '@playwright/test';
 import { ID, LOGIN } from '../scripts/seed';
 import { fillSignIn, signIn } from './sign-in';
+import { tinyPdf } from '../tests/pdf-fixture';
 
 test('scholarship: explain -> reviewed complaint -> receipt -> staff update', async ({ page }) => {
   await signIn(page, 'asha');
@@ -51,14 +52,22 @@ test('learn: scoped tutor answer with sources, authorized download, paper filter
   await expect(page).toHaveURL(/year=2024/);
 });
 
-test('career + jobs: JD gap analysis, self-reported application', async ({ page }) => {
+test('career + jobs: PDF resume upload, ATS match with open roles, JD gap analysis, self-reported application', async ({ page }) => {
   await signIn(page, 'asha');
   await page.goto('/career');
+  await page.getByLabel('Resume PDF').setInputFiles({ name: 'resume.pdf', mimeType: 'application/pdf',
+    buffer: tinyPdf(['Asha Rao\nTechnical Skills\nLanguages: Python, SQL, Git\nAcademic Projects\nLibrary app using React\nEducation\nB.Tech CSE']) });
+  await page.getByRole('button', { name: 'Read my resume' }).click();
+  await expect(page.getByLabel('Fact').nth(1)).toHaveValue('Python');
+  await page.getByRole('button', { name: /I confirm these facts are true/ }).click();
+  await expect(page.getByText(/Saved and confirmed version/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ATS match with every open role' })).toBeVisible();
+  await expect(page.getByText(/ATS \d+\/100/).first()).toBeVisible();
   await page.getByLabel('Paste a job description').fill('Backend developer. Required: Python, SQL, Docker, Git and Linux experience.');
   await page.getByRole('button', { name: 'Analyse against my resume' }).click();
   await expect(page.getByRole('heading', { name: 'Gaps' })).toBeVisible();
   await page.screenshot({ path: '.data/ui-qa/final-desktop-career-result.png', fullPage: true, caret: 'initial' });
-  await expect(page.getByText('no score is shown')).toBeVisible();
+  await expect(page.getByText('The AI never scores you')).toBeVisible();
   await page.goto('/jobs');
   await page.locator('.job-card h2 a').first().click();
   await page.getByRole('button', { name: 'I applied (self-reported)' }).click();

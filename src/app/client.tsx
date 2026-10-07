@@ -300,7 +300,7 @@ function RunResult({ kind, r }: { kind: string; r: any }) {
   return (
     <>
       <Text t={r.answer} />
-      <p className="muted">Readiness: <strong>{r.readiness}</strong> (no assessment rubric has been run; no score is shown).</p>
+      <p className="muted">The AI never scores you. Your ATS match with each open role is computed by the published formula on the Career page.</p>
       <h3>Matched skills</h3><p>{r.matched?.join(', ') || 'none found'}</p>
       <h3>Gaps</h3><ul>{r.gaps?.map((g: any) => <li key={g.skill}><strong>{g.skill}</strong> — {g.evidence}</li>)}</ul>
       <h3>Suggested edits (based only on your confirmed facts)</h3>

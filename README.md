@@ -28,7 +28,7 @@ The sign-in page has two choices only: **Student** and **Faculty & Staff**.
 
 The app starts **empty**. There are no demo accounts. Do this once per college:
 
-1. **Database.** Local: leave `DATABASE_URL` as in `.env.example`. Supabase: put the **Session pooler** connection string in `DATABASE_URL`, download the CA certificate (Supabase → Database settings → SSL configuration) and set `DATABASE_CA_CERT` to its path. `run.cmd` then uses Supabase instead of the local database.
+1. **Database.** Local: leave `DATABASE_URL` as in `.env.example`. Supabase: put the **Transaction pooler** connection string (port 6543) in `DATABASE_URL`, download the CA certificate (Supabase → Database settings → SSL configuration) and set `DATABASE_CA_CERT` to its path. `run.cmd` then uses Supabase instead of the local database.
 2. **College and first administrator.** `npm run setup -- "<College name>" <admin email> <password> "<Admin name>"` (password: 10+ characters).
 3. **Sign in** as that administrator (Faculty & Staff) and open **College setup**. Follow its *Getting started* list: branches and syllabus, faculty and placement accounts, students (one by one or from a spreadsheet), timetable, fees and scholarship schemes.
 4. Students sign in with their college email and their roll number as the first password.

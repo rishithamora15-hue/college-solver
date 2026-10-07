@@ -16,7 +16,7 @@ services:
       - key: NODE_ENV
         value: production      # refuses the fixture (mock) AI provider
       - key: DATABASE_URL
-        sync: false            # Supabase Session pooler string (long-running process; Vercel uses the Transaction pooler)
+        sync: false            # Supabase Transaction pooler string (port 6543), same as Vercel
       - key: DATABASE_CA_CERT
         sync: false            # Supabase CA certificate PEM text (Database settings > SSL configuration)
       - key: SESSION_SECRET

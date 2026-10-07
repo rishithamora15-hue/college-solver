@@ -29,6 +29,16 @@ describe('durable queue', () => {
     expect(b).toBeUndefined();
   });
 
+  it('serverless drain (Vercel) runs every due job to completion, once, with no worker process', async () => {
+    const { drain } = await import('../src/worker/main');
+    await probe('drain-a'); await probe('drain-b');
+    await Promise.all([drain(), drain()]); // two requests' drains at once
+    for (const k of ['drain-a', 'drain-b']) {
+      expect(await effects(k)).toBe(1);
+      expect((await jobState(k)).state).toBe('succeeded');
+    }
+  });
+
   it('concurrent claimers never claim the same job twice (SKIP LOCKED)', async () => {
     for (let i = 0; i < 6; i++) await probe(`cc${i}`);
     const claims = (await Promise.all(Array.from({ length: 12 }, (_, i) => claim(`w${i}`)))).filter(Boolean);

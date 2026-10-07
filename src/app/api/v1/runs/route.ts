@@ -33,4 +33,4 @@ export const POST = route(async (req) => {
     return createRun(c, a, sid, kind, i);
   });
   return json(res, 202);
-});
+}, { drain: true });

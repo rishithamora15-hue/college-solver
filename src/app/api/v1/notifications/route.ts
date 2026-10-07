@@ -8,7 +8,7 @@ export const GET = route(async (req) => {
   const items = await scoped(a, (c) => many(c, `select id, title, body, sender, created_at, read_at from notifications
     where college_id = $1 and user_id = $2 and state = 'delivered' order by created_at desc limit 20`, [a.collegeId, a.userId]));
   return json({ items });
-});
+}, { drain: true });
 
 /** Mark some (ids) or all as read. */
 export const PATCH = route(async (req) => {

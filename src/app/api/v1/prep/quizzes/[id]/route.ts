@@ -18,4 +18,4 @@ export const POST = route(async (req, { params }: { params: Promise<{ id: string
     if (run) await c.query('update quiz_attempts set coach_run_id = $3 where college_id = $1 and id = $2', [a.collegeId, id, run.run_id]);
     return { id, coach_run_id: run?.run_id ?? null };
   }));
-});
+}, { drain: true });

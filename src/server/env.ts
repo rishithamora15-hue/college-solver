@@ -14,6 +14,7 @@ const schema = z.object({
   RUNTIME_MODEL: z.string().optional(),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
   APP_ORIGIN: z.string().default('http://localhost:3000'),
+  CRON_SECRET: z.string().min(16).optional(), // Vercel Cron sends it as a bearer token to /api/v1/cron/daily
 });
 
 export type Env = z.infer<typeof schema>;

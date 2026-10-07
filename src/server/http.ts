@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { NextResponse, type NextRequest } from 'next/server';
+import { after, NextResponse, type NextRequest } from 'next/server';
 import type { z } from 'zod';
 import { resolveActor, SESSION_COOKIE, verifySession, type Actor, type Role } from './auth';
 import { env } from './env';
@@ -7,12 +7,15 @@ import { one, tx, type Db } from './db';
 import { AppError, notFound } from './errors';
 export { AppError, notFound } from './errors';
 
-export function route<C>(fn: (req: NextRequest, ctx: C) => Promise<Response>) {
+export function route<C>(fn: (req: NextRequest, ctx: C) => Promise<Response>, options: { drain?: boolean } = {}) {
   return async (req: NextRequest, ctx: C) => {
     const request_id = randomUUID();
     try {
       if (!['GET', 'HEAD'].includes(req.method)) checkOrigin(req);
-      return await fn(req, ctx);
+      const response = await fn(req, ctx);
+      // Vercel has no worker process: queue-producing requests run due jobs once their response is sent.
+      if (options.drain && process.env.VERCEL) after(() => import('../worker/main').then((m) => m.drain()));
+      return response;
     } catch (e) {
       if (e instanceof AppError) return NextResponse.json({ error: { code: e.code, message: e.message, request_id, ...e.extra } }, { status: e.status });
       console.error(JSON.stringify({ level: 'error', request_id, path: req.nextUrl.pathname, err: (e as Error).message?.slice(0, 200) }));

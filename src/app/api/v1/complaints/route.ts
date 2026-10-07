@@ -15,4 +15,4 @@ export const POST = route(async (req) => {
   const i = await body(req, schema);
   const res = await scoped(a, (c) => idempotent(c, a, 'complaint.submit', req.headers.get('idempotency-key'), i, () => submitComplaint(c, a, sid, i)));
   return json(res, 201);
-});
+}, { drain: true });

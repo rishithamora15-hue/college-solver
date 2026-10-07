@@ -13,4 +13,4 @@ export const POST = route(async (req, { params }: { params: Promise<{ id: string
   const id = uuidParam((await params).id);
   const i = await body(req, schema);
   return json(await scoped(a, (c) => addEvent(c, a, id, i)));
-});
+}, { drain: true });

@@ -49,6 +49,29 @@ export async function runJob(job: Job) {
   }
 }
 
+export const enqueueDailySweep = (day = new Date().toISOString().slice(0, 10)) =>
+  tx((c) => enqueue(c, { collegeId: null, kind: 'reminder_sweep', payload: { day }, dedupKey: `reminder_sweep:${day}` }));
+
+/**
+ * Serverless mode (Vercel has no long-running worker): after an API request, run due jobs until none are left or the
+ * budget is spent. Leases make drains in many instances at once safe; a drain cut off mid-job is recovered by the next
+ * one when its lease expires. Retries (2 s, 4 s backoff) are picked up by the page's own polling requests.
+ */
+let draining = 0;
+export async function drain(budgetMs = 45_000) {
+  if (draining >= env().WORKER_CONCURRENCY) return;
+  draining++;
+  try {
+    const end = Date.now() + budgetMs;
+    let job: Job | null;
+    while (Date.now() < end && (job = await claim(workerId))) await runJob(job);
+  } catch (e) {
+    log({ msg: 'drain_error', err: (e as Error).message });
+  } finally {
+    draining--;
+  }
+}
+
 export async function main() {
   env(); // fail fast on bad config
   const concurrency = env().WORKER_CONCURRENCY;
@@ -60,7 +83,7 @@ export async function main() {
   while (!stopping) {
     const day = new Date().toISOString().slice(0, 10);
     if (day !== lastSweep) {
-      await tx((c) => enqueue(c, { collegeId: null, kind: 'reminder_sweep', payload: { day }, dedupKey: `reminder_sweep:${day}` })).catch(() => {});
+      await enqueueDailySweep(day).catch(() => {});
       lastSweep = day;
     }
     if (active >= concurrency) { await sleep(200); continue; }

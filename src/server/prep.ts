@@ -4,9 +4,10 @@ import { many, one, type Db } from './db';
 import type { Actor } from './auth';
 import { AppError, notFound } from './http';
 import { skillsIn, type Fact } from './career';
-import { MODULES, PATHS, TRACKS, type Dim, type Module, type PathId, type Question, type Round, type Track } from './prep-bank';
+import { COURSES, MODULES, PATHS, TRACKS, type Course, type Dim, type Module, type PathId, type Question, type Round, type Track } from './prep-bank';
+import { EXPLAIN } from './prep-explain';
 
-export { MODULES, PATHS, TRACKS, type Dim, type PathId, type Track };
+export { COURSES, MODULES, PATHS, TRACKS, type Course, type Dim, type PathId, type Track };
 export const WINDOW = 30;     // a track's score uses the latest 30 graded answers, so it reflects recent improvement
 export const MIN_ANSWERS = 5; // fewer graded answers than this = not assessed
 
@@ -86,6 +87,25 @@ export function moduleProgress(m: Module, s: PrepState) {
 export const pathModules = (pathId: PathId, track?: Track) => PATHS[pathId].modules.map((id) => MOD.get(id)!).filter((m) => !track || m.track === track);
 export const moduleHref = (m: Module) => `/prep/${m.track}?m=${m.id}#${m.id}`;
 
+export const courseById = (id: string) => COURSES.find((c) => c.id === id);
+export const courseModules = (c: Course) => c.modules.map((id) => MOD.get(id)!);
+export const courseOf = (moduleId: string) => COURSES.find((c) => c.modules.includes(moduleId));
+/** The course that teaches a resume skill (career.ts vocabulary), if any. */
+export const courseForSkill = (skill: string) => COURSES.find((c) => c.skills.includes(skill));
+const LEVELS: Course['level'][] = ['Foundation', 'Core', 'Role-specific'];
+/** Courses that cover the path's modules: foundations first, then in the path's own module order. */
+export const pathCourses = (pathId: PathId) => {
+  const order = PATHS[pathId].modules;
+  const at = (c: Course) => Math.min(...c.modules.map((m) => order.indexOf(m)).filter((i) => i >= 0));
+  return COURSES.filter((c) => c.modules.some((m) => order.includes(m)))
+    .sort((x, y) => LEVELS.indexOf(x.level) - LEVELS.indexOf(y.level) || at(x) - at(y));
+};
+export function courseProgress(c: Course, s: PrepState) {
+  const xs = courseModules(c).map((m) => moduleProgress(m, s));
+  const sum = (k: 'answered' | 'total' | 'correct') => xs.reduce((t, x) => t + x[k], 0);
+  return { done: xs.filter((x) => x.done).length, modules: xs.length, answered: sum('answered'), total: sum('total'), correct: sum('correct') };
+}
+
 export type Step = { dim: Dim; label: string; score: number | null; title: string; href: string; reason: string };
 
 /**
@@ -119,7 +139,7 @@ const pick = (d: DimScore) => ({ dim: d.dim, label: d.label, score: d.score });
 export function clientQuestion(q: FullQuestion, mine?: Answer) {
   return {
     id: q.id, q: q.q, code: q.code ?? null, options: q.options, round: q.round,
-    result: mine ? { choice: mine.choice, correct: mine.correct, answer: q.answer, why: q.why } : null,
+    result: mine ? { choice: mine.choice, correct: mine.correct, answer: q.answer, why: q.why, explain: EXPLAIN[q.id] ?? null } : null,
   };
 }
 export type ClientQuestion = ReturnType<typeof clientQuestion>;
@@ -139,7 +159,7 @@ export async function recordAnswer(c: Db, a: Actor, sid: string, questionId: str
   const ins = await one(c, `insert into practice_answers (college_id, student_id, question_id, track, choice, correct) values ($1,$2,$3,$4,$5,$6)
     on conflict (student_id, question_id) do nothing returning choice, correct`, [a.collegeId, sid, q.id, q.track, choice, choice === q.answer]);
   const row = ins ?? await one(c, 'select choice, correct from practice_answers where college_id = $1 and student_id = $2 and question_id = $3', [a.collegeId, sid, q.id]);
-  return { recorded: !!ins, choice: row.choice as number, correct: row.correct as boolean, answer: q.answer, why: q.why };
+  return { recorded: !!ins, choice: row.choice as number, correct: row.correct as boolean, answer: q.answer, why: q.why, explain: EXPLAIN[q.id] ?? null };
 }
 
 export async function markRead(c: Db, a: Actor, sid: string, moduleId: string) {

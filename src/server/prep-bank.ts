@@ -450,3 +450,56 @@ export const MODULES: Module[] = [
     ],
   },
 ];
+
+/**
+ * Courses: what a student should learn, each built from the modules above (key points + graded practice).
+ * Every module belongs to exactly one course. `skills` use the resume vocabulary (career.ts) so a skill missing from a
+ * resume can point at the course that teaches it. `hours` is a suggested study time, not a measurement.
+ */
+export type Course = { id: string; title: string; level: 'Foundation' | 'Core' | 'Role-specific'; hours: number; blurb: string; outcomes: string[]; skills: string[]; modules: string[] };
+export const COURSES: Course[] = [
+  { id: 'quant', title: 'Quantitative aptitude', level: 'Foundation', hours: 12, skills: [],
+    blurb: 'The arithmetic, speed and data questions in almost every campus online test.',
+    outcomes: ['Solve percentage, profit and interest questions in under a minute', 'Use the LCM method for work, pipes and trains', 'Count arrangements and work out probabilities', 'Read tables and pie charts without a calculator'],
+    modules: ['apt-arith', 'apt-time', 'apt-prob', 'apt-di'] },
+  { id: 'reasoning', title: 'Logical reasoning', level: 'Foundation', hours: 5, skills: ['problem solving'],
+    blurb: 'Series, coding-decoding, relations, directions, syllogisms, clocks and calendars.',
+    outcomes: ['Spot number-series patterns from differences and ratios', 'Draw family trees, direction sketches and Venn diagrams', 'Tell when a conclusion really follows'],
+    modules: ['apt-reason'] },
+  { id: 'programming', title: 'Programming fundamentals', level: 'Foundation', hours: 10, skills: ['c', 'java', 'python', 'oop'],
+    blurb: 'How C, Java and Python really evaluate code, and the four pillars of OOP.',
+    outcomes: ['Predict the output of tricky snippets (operators, loops, slicing, increments)', 'Explain encapsulation, inheritance, polymorphism and abstraction with code'],
+    modules: ['cod-output', 'cod-oop'] },
+  { id: 'dsa', title: 'Data structures and algorithms', level: 'Core', hours: 25, skills: ['data structures', 'algorithms'],
+    blurb: 'Arrays, strings, linked lists, hashing, searching, sorting and Big-O: the core of every coding round.',
+    outcomes: ['Pick the right structure: hash map, stack, queue or two pointers', 'Write Kadane, Floyd, binary search and merge sort from memory', 'State the time and space complexity of your solution'],
+    modules: ['cod-dsa', 'cod-algo'] },
+  { id: 'databases', title: 'Databases and SQL', level: 'Core', hours: 10, skills: ['sql', 'dbms', 'mysql', 'postgresql'],
+    blurb: 'Queries interviewers ask every time, joins, aggregates, normalisation and transactions.',
+    outcomes: ['Write Nth-highest, GROUP BY / HAVING and JOIN queries', 'Explain NULL handling, normal forms and ACID'],
+    modules: ['cod-sql'] },
+  { id: 'cs-core', title: 'CS fundamentals: OS, networks and Git', level: 'Core', hours: 8, skills: ['operating systems', 'computer networks', 'git', 'linux'],
+    blurb: 'Processes and threads, deadlock, TCP/UDP, what happens when you open a URL, and Git.',
+    outcomes: ['Explain deadlock conditions and how to prevent them', 'Compare TCP and UDP, and walk through DNS → TCP → TLS → HTTP', 'Use fetch, merge, pull and rebase confidently'],
+    modules: ['cod-core'] },
+  { id: 'testing', title: 'Software testing', level: 'Role-specific', hours: 8, skills: ['testing', 'selenium', 'automation testing'],
+    blurb: 'Test design, bug reporting and the vocabulary QA interviews expect.',
+    outcomes: ['Design boundary-value and black-box test cases', 'Write a bug report a developer can act on', 'Explain severity vs priority and verification vs validation'],
+    modules: ['cod-testing'] },
+  { id: 'data', title: 'Data analysis with Python and statistics', level: 'Role-specific', hours: 10, skills: ['statistics', 'pandas', 'numpy', 'data analysis'],
+    blurb: 'Descriptive statistics, correlation vs causation, and everyday pandas.',
+    outcomes: ['Choose mean or median and explain why', 'Group, aggregate and clean data with pandas', 'Avoid claiming cause from correlation'],
+    modules: ['cod-stats'] },
+  { id: 'excel', title: 'Excel and business analytics', level: 'Role-specific', hours: 6, skills: ['excel', 'ms office', 'power bi'],
+    blurb: 'Lookups, conditional sums, references, pivot tables and ROI.',
+    outcomes: ['Use VLOOKUP/XLOOKUP, SUMIF(S) and absolute references', 'Summarise data with a pivot table', 'Calculate ROI and growth correctly'],
+    modules: ['cod-excel'] },
+  { id: 'communication', title: 'Professional communication', level: 'Foundation', hours: 12, skills: ['communication', 'presentation', 'negotiation'],
+    blurb: 'Verbal ability for online tests, professional email, group discussions and client conversations.',
+    outcomes: ['Fix common grammar errors and pick the right word', 'Write clear, polite professional emails', 'Speak with structure in a group discussion or a client call'],
+    modules: ['com-grammar', 'com-vocab', 'com-email', 'com-speaking', 'com-client'] },
+  { id: 'interview', title: 'Interview readiness', level: 'Core', hours: 6, skills: ['leadership', 'teamwork'],
+    blurb: 'HR questions, STAR stories and professional behaviour.',
+    outcomes: ['Answer the common HR questions honestly and briefly', 'Tell teamwork and leadership stories with STAR', 'Prepare for online and in-person interviews'],
+    modules: ['int-hr', 'int-star', 'int-etiquette'] },
+];

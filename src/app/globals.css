@@ -499,6 +499,13 @@ fieldset.rules legend { padding:0 6px; font-size:13px; font-weight:700; color:va
 .q-option.is-answer { border-color:#5eead4; background:var(--teal-50); }
 .q-option.is-wrong { border-color:#fda4af; background:var(--rose-50); }
 .q-result p { margin:6px 0 0; }
+.explain { margin-top:10px; padding:10px 14px; border:1px solid var(--line); border-radius:12px; background:var(--violet-50); }
+.explain > summary { cursor:pointer; font-weight:700; color:var(--primary); }
+.explain ol { margin:8px 0; padding-left:20px; } .explain li { margin:4px 0; }
+.explain pre { margin:8px 0 0; font-size:.85rem; line-height:1.5; }
+.code-lang { display:inline-block; margin-top:6px; padding:1px 8px; border-radius:6px 6px 0 0; font-size:.75rem; font-weight:700; color:#ece9ff; background:#1f1c3d; }
+.code-lang + pre { margin-top:0; border-top-left-radius:0; }
+.explain .banner { margin:8px 0 0; }
 
 /* ---------- Quiz sessions, tracker, coach and tutor key points */
 [data-tone="jobs"] { --tone:linear-gradient(135deg, #38bdf8, #0ea5e9); }

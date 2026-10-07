@@ -47,7 +47,7 @@ export default async function Prep() {
             <PlanSteps steps={trainingPlan(path, s, r)} />
           </section>
         </div>
-        <div className="section-head"><h2>Course</h2><span className="muted">{all.filter((x) => x.done).length} of {all.length} modules complete</span></div>
+        <div className="section-head"><h2>Course</h2><span className="muted">{all.filter((x) => x.done).length} of {all.length} modules complete · <Link href="/prep/courses">See your courses in order →</Link></span></div>
         <div className="course-grid">
           {(Object.keys(TRACKS) as Track[]).map((t) => (
             <section key={t} className="card">

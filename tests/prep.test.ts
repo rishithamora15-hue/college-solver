@@ -4,9 +4,10 @@ import { ID } from '../scripts/seed';
 import { tx } from '../src/server/db';
 import { skillsIn, type Fact } from '../src/server/career';
 import {
-  MIN_ANSWERS, MODULES, PATHS, QUESTIONS, TRACKS, WINDOW, clientQuestion, markRead, pathModules, prepState, readiness, recordAnswer,
+  COURSES, MIN_ANSWERS, MODULES, PATHS, QUESTIONS, TRACKS, WINDOW, clientQuestion, courseForSkill, courseProgress, markRead, pathCourses, pathModules, prepState, readiness, recordAnswer,
   setPath, trackScore, trainingPlan, type Answer, type PrepState, type Track,
 } from '../src/server/prep';
+import { EXPLAIN } from '../src/server/prep-explain';
 import { actor } from './helpers';
 
 const S = (a: { collegeId: string; userId: string }) => ({ collegeId: a.collegeId, userId: a.userId });
@@ -43,6 +44,25 @@ describe('question bank', () => {
     expect(coding('data')).toContain('cod-stats');
     expect(coding('business')).toEqual(['cod-excel']);
   });
+  it('every aptitude and coding question has a worked explanation; no explanation points at a missing question', () => {
+    const need = QUESTIONS.filter((q) => q.track === 'aptitude' || q.track === 'coding');
+    for (const q of need) {
+      const e = EXPLAIN[q.id];
+      expect(e, q.id).toBeTruthy();
+      expect(e.steps.length, q.id).toBeGreaterThanOrEqual(2);
+      expect(e.code.src.trim().length, q.id).toBeGreaterThan(0);
+    }
+    expect(Object.keys(EXPLAIN).filter((id) => !QUESTIONS.some((q) => q.id === id))).toEqual([]);
+  });
+  it('courses: every module in exactly one course, skills the resume matcher knows, path order respected', () => {
+    const owners = MODULES.map((m) => COURSES.filter((c) => c.modules.includes(m.id)).length);
+    expect(owners.every((n) => n === 1)).toBe(true);
+    for (const c of COURSES) for (const k of c.skills) expect(skillsIn(k), `${c.id}: ${k}`).toContain(k);
+    expect(pathCourses('software').map((c) => c.id)).toEqual(['quant', 'reasoning', 'communication', 'programming', 'dsa', 'databases', 'cs-core', 'interview']);
+    expect(pathCourses('business').map((c) => c.id)).not.toContain('dsa');
+    expect(courseForSkill('sql')?.id).toBe('databases');
+    expect(courseProgress(COURSES[0], state({})).answered).toBe(0);
+  });
 });
 
 describe('readiness rubric', () => {
@@ -78,6 +98,9 @@ describe('readiness rubric', () => {
     expect(out.result).toBeNull();
     expect(JSON.stringify(out)).not.toContain(q.why);
     expect(out).not.toHaveProperty('answer');
+    const coding = QUESTIONS.find((x) => x.track === 'coding')!;
+    expect(JSON.stringify(clientQuestion(coding))).not.toContain(EXPLAIN[coding.id].steps[0]); // explanation only after answering
+    expect(clientQuestion(coding, { question_id: coding.id, track: 'coding', choice: 0, correct: false }).result!.explain).toEqual(EXPLAIN[coding.id]);
   });
 });
 

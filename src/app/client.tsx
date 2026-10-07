@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import type { ClientQuestion } from '@/server/prep';
+import type { Explain } from '@/server/prep-explain';
 
 type RunKind = 'scholarship' | 'tutor' | 'career' | 'coach';
 type ApiErr = { code: string; message: string; request_id: string; fields?: string[]; retry_after_s?: number; problems?: string[] };
@@ -1230,6 +1231,7 @@ export function PracticeQuestion({ n, q }: { n: number; q: ClientQuestion }) {
   const [res, setRes] = useState<(NonNullable<ClientQuestion['result']> & { recorded?: boolean }) | null>(q.result);
   const [err, setErr] = useState<ApiErr | null>(null);
   const [busy, setBusy] = useState(false);
+  const [fresh, setFresh] = useState(false); // just answered: open the explanation; earlier answers stay folded
   const r = useRouter();
   const opt = (i: number) => `q-option${res && i === res.answer ? ' is-answer' : ''}${res && i === res.choice && !res.correct ? ' is-wrong' : ''}`;
   return (
@@ -1249,15 +1251,30 @@ export function PracticeQuestion({ n, q }: { n: number; q: ClientQuestion }) {
         <div role="status" className="q-result">
           <strong className={res.correct ? 'ok' : 'bad'}>{res.correct ? 'Correct.' : `Not quite. Answer: ${q.options[res.answer]}`}</strong>
           <p>{res.why}</p>
+          {res.explain && <Explanation e={res.explain} open={fresh} />}
           {res.recorded === false && <p className="muted small">You had already answered this question; your first answer is the one that counts.</p>}
         </div>
       ) : (
         <button type="button" className="small" disabled={pick === null || busy} onClick={async () => {
           setBusy(true); setErr(null);
-          try { const x = await api('/api/v1/prep/answers', 'POST', { question_id: q.id, choice: pick }); setRes(x); setPick(x.choice); r.refresh(); } catch (e) { setErr(e as ApiErr); } finally { setBusy(false); }
+          try { const x = await api('/api/v1/prep/answers', 'POST', { question_id: q.id, choice: pick }); setRes(x); setPick(x.choice); setFresh(true); r.refresh(); } catch (e) { setErr(e as ApiErr); } finally { setBusy(false); }
         }}>Check answer</button>
       )}
     </fieldset>
+  );
+}
+
+const LANG: Record<Explain['code']['lang'], string> = { python: 'Python', java: 'Java', c: 'C', sql: 'SQL', bash: 'Terminal', excel: 'Excel', text: 'Example' };
+/** Worked solution: numbered steps, a snippet (runnable for Python), and the usual trap. */
+function Explanation({ e, open }: { e: Explain; open: boolean }) {
+  return (
+    <details className="explain" open={open}>
+      <summary>Step-by-step explanation</summary>
+      <ol>{e.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+      <span className="code-lang">{LANG[e.code.lang]}</span>
+      <pre><code>{e.code.src}</code></pre>
+      {e.trap && <p className="banner warn"><strong>Common trap:</strong> {e.trap}</p>}
+    </details>
   );
 }
 

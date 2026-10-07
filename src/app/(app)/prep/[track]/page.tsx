@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { pageActor, q } from '@/server/page';
-import { MIN_ANSWERS, PATHS, TRACKS, clientQuestion, moduleProgress, moduleQuestions, pathModules, prepState, trackScore, type Track } from '@/server/prep';
+import { MIN_ANSWERS, PATHS, TRACKS, clientQuestion, courseOf, moduleProgress, moduleQuestions, pathModules, prepState, trackScore, type Track } from '@/server/prep';
 import { Fold, MarkRead, PracticeQuestion } from '../../../client';
 import { Empty, NotFound } from '../../../ui';
 import { PrepTabs, ScoreBar } from '../parts';
@@ -46,6 +46,7 @@ export default async function Practice({ params, searchParams }: { params: Promi
             <span className="module-title"><strong>{m.title}</strong><small className="muted">{x.answered} of {x.total} answered · {x.correct} correct</small></span>
             <span className={`badge ${x.done ? 'ok' : x.answered || x.read ? 'info' : 'neutral'}`}>{x.done ? 'complete' : x.answered || x.read ? 'in progress' : 'not started'}</span>
           </>}>
+            {courseOf(m.id) && <p className="muted small">Part of the course <Link href={`/prep/courses/${courseOf(m.id)!.id}`}>{courseOf(m.id)!.title}</Link>.{t === 'aptitude' || t === 'coding' ? ' Answer a question to see its step-by-step solution with code.' : ''}</p>}
             <h3>Key points</h3>
             <ul>{m.lesson.map((l) => <li key={l}>{l}</li>)}</ul>
             {m.note && <p className="banner info">{m.note}</p>}

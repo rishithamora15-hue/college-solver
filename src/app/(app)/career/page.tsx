@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { pageActor, q } from '@/server/page';
 import { atsReport, priority, resumeVersions } from '@/server/career';
 import { ineligibility, listJobs, profiles } from '@/server/jobs';
+import { courseForSkill } from '@/server/prep';
 import { JdAnalysis, ResumeEditor } from '../../client';
 import { Empty, when, SectionTabs } from '../../ui';
 
@@ -59,6 +60,7 @@ export default async function Career() {
               <li key={l.skill}>
                 <div className="att-head"><strong>{l.skill}</strong><span className={`badge ${l.points >= 30 ? 'bad' : l.points >= 15 ? 'warn' : 'neutral'}`}>+{l.points} ATS points</span></div>
                 <small className="muted">Asked by {l.roles.length} role{l.roles.length > 1 ? 's' : ''}: {l.roles.join('; ')}</small>
+                {courseForSkill(l.skill) && <small> · <Link href={`/prep/courses/${courseForSkill(l.skill)!.id}`}>Learn it: {courseForSkill(l.skill)!.title} →</Link></small>}
               </li>
             ))}</ol>
           </>}

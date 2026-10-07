@@ -13,7 +13,8 @@ export type Scope = { collegeId: string; userId?: string };
 let pool: pg.Pool | undefined;
 export function getPool() {
   if (!pool) {
-    pool = new pg.Pool({ ...pgConn(env().DATABASE_URL), max: 10, connectionTimeoutMillis: 5000 });
+    // Vercel runs many short-lived instances, each with its own pool: keep each small (and use Supabase's transaction pooler).
+    pool = new pg.Pool({ ...pgConn(env().DATABASE_URL), max: process.env.VERCEL ? 2 : 10, connectionTimeoutMillis: 5000 });
     pool.on('error', (e) => console.error(JSON.stringify({ level: 'error', msg: 'pg_pool_error', err: e.message })));
   }
   return pool;

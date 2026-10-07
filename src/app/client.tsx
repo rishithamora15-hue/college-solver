@@ -407,16 +407,29 @@ export function ResumeEditor({ initial }: { initial: { section: string; text: st
   const [items, setItems] = useState(initial);
   const [err, setErr] = useState<ApiErr | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const r = useRouter();
   const sections = ['summary', 'education', 'skill', 'project', 'experience', 'achievement'];
+  const read = async (get: () => Promise<{ items: { section: string; text: string }[] }>) => {
+    setErr(null); setBusy(true);
+    try { setItems((await get()).items); } catch (e) { setErr(e as ApiErr); } finally { setBusy(false); }
+  };
   return (
     <div className="card">
       <ErrorBox err={err} />
-      <h2>1. Paste resume text</h2>
-      <p className="muted">PDF upload is disabled in this pilot (safe parser and scanner not yet enabled). Paste text instead.</p>
-      <label htmlFor="rt">Resume text</label>
-      <textarea id="rt" rows={6} maxLength={20000} value={text} onChange={(e) => setText(e.target.value)} />
-      <p><button className="secondary" onClick={async () => { try { setItems((await api('/api/v1/resume/preview', 'POST', { text })).items); } catch (e) { setErr(e as ApiErr); } }}>Preview extraction</button></p>
+      <h2>1. Upload your resume</h2>
+      <p className="muted">PDF, up to 5 MB. We read its text and list every fact below for you to check. The file itself is not stored.</p>
+      <form onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); read(() => upload('/api/v1/resume/preview', form)); }}>
+        <label htmlFor="rf">Resume PDF</label>
+        <input id="rf" name="file" type="file" accept="application/pdf,.pdf" required />
+        <p><button className="secondary" disabled={busy}>{busy ? 'Reading…' : 'Read my resume'}</button></p>
+      </form>
+      <details>
+        <summary>No PDF, or a scanned one? Paste the text instead</summary>
+        <label htmlFor="rt">Resume text</label>
+        <textarea id="rt" rows={6} maxLength={20000} value={text} onChange={(e) => setText(e.target.value)} />
+        <p><button className="secondary" disabled={busy} onClick={() => read(() => api('/api/v1/resume/preview', 'POST', { text }))}>Preview extraction</button></p>
+      </details>
       <h2>2. Check and correct each fact</h2>
       {items.map((it, i) => (
         <div className="row" key={i}>
